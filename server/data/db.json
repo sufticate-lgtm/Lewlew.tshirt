@@ -1,0 +1,52 @@
+{
+  "settings": {
+    "basePrice": 149000,
+    "xxlSurcharge": 20000
+  },
+  "shirtColors": [
+    { "id": "white", "name": "Trắng", "hex": "#FFFFFF" },
+    { "id": "black", "name": "Đen", "hex": "#181816" },
+    { "id": "navy", "name": "Navy", "hex": "#1F3A5F" },
+    { "id": "red", "name": "Đỏ", "hex": "#A63A33" },
+    { "id": "heather", "name": "Xám Tro", "hex": "#A8A6A1" },
+    { "id": "forest", "name": "Xanh Rêu", "hex": "#3F5B43" },
+    { "id": "mustard", "name": "Vàng Mù Tạt", "hex": "#C98A2E" }
+  ],
+  "printColors": [
+    { "id": "white", "name": "Trắng", "hex": "#FFFFFF" },
+    { "id": "black", "name": "Đen", "hex": "#181816" },
+    { "id": "orange", "name": "Cam Mực", "hex": "#FF5A1F" },
+    { "id": "blue", "name": "Xanh Chỉ", "hex": "#2C4A6E" },
+    { "id": "gold", "name": "Vàng Đồng", "hex": "#D9A441" },
+    { "id": "cream", "name": "Kem", "hex": "#F6F2E9" },
+    { "id": "green", "name": "Xanh Rêu", "hex": "#3F6B4A" },
+    { "id": "red", "name": "Đỏ Gạch", "hex": "#C23B33" }
+  ],
+  "designs": [
+    {
+      "id": "sunburst",
+      "name": "Tia Nắng",
+      "defaultColors": { "primary": "orange", "secondary": "cream" },
+      "svg": "<g><polygon transform=\"rotate(0 100 100)\" points=\"94,100 100,8 106,100\" fill=\"__PRIMARY__\"/><polygon transform=\"rotate(45 100 100)\" points=\"94,100 100,8 106,100\" fill=\"__PRIMARY__\"/><polygon transform=\"rotate(90 100 100)\" points=\"94,100 100,8 106,100\" fill=\"__PRIMARY__\"/><polygon transform=\"rotate(135 100 100)\" points=\"94,100 100,8 106,100\" fill=\"__PRIMARY__\"/><polygon transform=\"rotate(180 100 100)\" points=\"94,100 100,8 106,100\" fill=\"__PRIMARY__\"/><polygon transform=\"rotate(225 100 100)\" points=\"94,100 100,8 106,100\" fill=\"__PRIMARY__\"/><polygon transform=\"rotate(270 100 100)\" points=\"94,100 100,8 106,100\" fill=\"__PRIMARY__\"/><polygon transform=\"rotate(315 100 100)\" points=\"94,100 100,8 106,100\" fill=\"__PRIMARY__\"/><circle cx=\"100\" cy=\"100\" r=\"40\" fill=\"__SECONDARY__\" stroke=\"__PRIMARY__\" stroke-width=\"5\"/></g>"
+    },
+    {
+      "id": "wave",
+      "name": "Sóng Biển",
+      "defaultColors": { "primary": "blue", "secondary": "cream" },
+      "svg": "<g><path d=\"M5,75 C35,35 60,115 90,75 C120,35 145,115 175,75 C188,58 195,65 195,65 L195,135 L5,135 Z\" fill=\"__PRIMARY__\"/><path d=\"M5,115 C35,85 60,145 90,115 C120,85 145,145 175,115 C188,100 195,107 195,107 L195,170 L5,170 Z\" fill=\"__SECONDARY__\"/></g>"
+    },
+    {
+      "id": "comet",
+      "name": "Sao Băng",
+      "defaultColors": { "primary": "black", "secondary": "gold" },
+      "svg": "<g><polygon points=\"100,10 121,79 195,79 135,123 158,190 100,150 42,190 65,123 5,79 79,79\" fill=\"__PRIMARY__\"/><circle cx=\"55\" cy=\"150\" r=\"10\" fill=\"__SECONDARY__\"/><circle cx=\"32\" cy=\"172\" r=\"7\" fill=\"__SECONDARY__\"/><circle cx=\"16\" cy=\"188\" r=\"4\" fill=\"__SECONDARY__\"/></g>"
+    },
+    {
+      "id": "mountain",
+      "name": "Núi Đôi",
+      "defaultColors": { "primary": "green", "secondary": "blue" },
+      "svg": "<g><polygon points=\"15,175 80,55 145,175\" fill=\"__SECONDARY__\"/><polygon points=\"65,175 130,45 195,175\" fill=\"__PRIMARY__\"/><circle cx=\"155\" cy=\"48\" r=\"13\" fill=\"__SECONDARY__\"/></g>"
+    }
+  ],
+  "orders": []
+}

@@ -1,0 +1,57 @@
+import { Link, useNavigate } from "react-router-dom";
+import { Plus, Minus, Trash2, ArrowLeft, ChevronRight } from "lucide-react";
+import ShirtPreview from "../components/ShirtPreview";
+import { useApp } from "../context/AppContext";
+import { formatVND } from "../shirtShape";
+
+export default function Cart() {
+  const { cart, removeItem, updateQty, total } = useApp();
+  const navigate = useNavigate();
+
+  if (cart.length === 0) {
+    return (
+      <div className="xi-empty">
+        <p>Giỏ hàng của bạn đang trống.</p>
+        <Link to="/" className="xi-btn-secondary"><ArrowLeft size={16} /> Quay lại Studio</Link>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <h1 className="xi-title">Giỏ Hàng</h1>
+      <div className="xi-cart-list">
+        {cart.map((item) => (
+          <div key={item.id} className="xi-cart-item">
+            <div style={{ width: 64 }}>
+              <ShirtPreview shirtHex={item.shirtHex} designSvg={item.designSvg} colors={item.colorsHex} size={64} />
+            </div>
+            <div className="xi-cart-item-info">
+              <div className="xi-cart-item-title">{item.designName} — Áo {item.shirtName}</div>
+              <div className="xi-cart-item-meta">Size {item.size} · {formatVND(item.unitPrice)}/cái</div>
+            </div>
+            <div className="xi-cart-item-actions">
+              <div className="xi-qty">
+                <button onClick={() => updateQty(item.id, -1)}><Minus size={12} /></button>
+                <span>{item.qty}</span>
+                <button onClick={() => updateQty(item.id, 1)}><Plus size={12} /></button>
+              </div>
+              <button className="xi-remove-btn" onClick={() => removeItem(item.id)}><Trash2 size={18} /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="xi-summary-box" style={{ marginTop: 24, maxWidth: 340, marginLeft: "auto" }}>
+        <div className="xi-summary-row"><span>Tạm tính</span><span>{formatVND(total)}</span></div>
+        <div className="xi-summary-row"><span>Vận chuyển</span><span>Tính ở bước sau</span></div>
+        <div className="xi-summary-row total"><span>Tổng</span><span>{formatVND(total)}</span></div>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 20, flexWrap: "wrap" }}>
+        <Link to="/" className="xi-btn-secondary"><ArrowLeft size={16} /> Tiếp tục chọn áo</Link>
+        <button className="xi-btn-primary" onClick={() => navigate("/checkout")}>Đặt hàng <ChevronRight size={16} /></button>
+      </div>
+    </div>
+  );
+}
