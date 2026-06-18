@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useLocation, useNavigate, Link } from "react-router-dom";
 import { Check, Loader2, ArrowLeft, Search } from "lucide-react";
 import { getOrder } from "../api";
-import { formatVND } from "../shirtShape";
+import { formatVND } from "../utils";
 
 const PAYMENT_NOTE = {
   cod: "Vui lòng chuẩn bị tiền mặt khi nhận hàng.",
@@ -75,8 +75,11 @@ export default function OrderLookup() {
 
       <div className="xi-summary-box" style={{ maxWidth: 420, margin: "0 auto", textAlign: "left" }}>
         {order.items.map((item, idx) => (
-          <div key={idx} className="xi-summary-row">
-            <span>{item.designId} ({item.shirtColorId}, {item.size}) x{item.qty}</span>
+          <div key={idx} className="xi-summary-row" style={{ alignItems: "center" }}>
+            <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {item.photo && <img src={item.photo} alt={item.designName} style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4 }} />}
+              {item.designName} ({item.variantName}, {item.shirtName}, {item.size}) x{item.qty}
+            </span>
             <span>{formatVND(item.unitPrice * item.qty)}</span>
           </div>
         ))}

@@ -1,43 +1,39 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { ShoppingBag, Plus, Minus, Loader2 } from "lucide-react";
-import ShirtPreview from "../components/ShirtPreview";
+import { ShoppingBag, Plus, Minus, Loader2, ImageOff } from "lucide-react";
 import { useApp } from "../context/AppContext";
-import { getShirtColors, getPrintColors, getDesigns, getSettings } from "../api";
-import { formatVND } from "../shirtShape";
+import { getShirtColors, getDesigns, getSettings } from "../api";
+import { formatVND } from "../utils";
 
 const SIZES = ["S", "M", "L", "XL", "XXL"];
 
 export default function Studio() {
   const { addItem } = useApp();
-  const navigate = useNavigate();
 
   const [shirtColors, setShirtColors] = useState([]);
-  const [printColors, setPrintColors] = useState([]);
   const [designs, setDesigns] = useState([]);
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [shirtColorId, setShirtColorId] = useState(null);
   const [designId, setDesignId] = useState(null);
-  const [designColors, setDesignColors] = useState({ primary: null, secondary: null });
+  const [variantId, setVariantId] = useState(null);
+  const [shirtColorId, setShirtColorId] = useState(null);
   const [size, setSize] = useState("M");
   const [qty, setQty] = useState(1);
-  const [swipeKey, setSwipeKey] = useState(0);
 
   useEffect(() => {
     (async () => {
       try {
-        const [sc, pc, d, s] = await Promise.all([getShirtColors(), getPrintColors(), getDesigns(), getSettings()]);
+        const [sc, d, s] = await Promise.all([getShirtColors(), getDesigns(), getSettings()]);
         setShirtColors(sc);
-        setPrintColors(pc);
         setDesigns(d);
         setSettings(s);
-        if (sc[0]) setShirtColorId(sc[0].id);
-        if (d[0]) {
-          setDesignId(d[0].id);
-          setDesignColors(d[0].defaultColors);
+        const firstDesign = d.find((x) => x.variants.length > 0);
+        if (firstDesign) {
+          setDesignId(firstDesign.id);
+          const firstVariant = firstDesign.variants.find((v) => Object.keys(v.photos).length > 0) || firstDesign.variants[0];
+          setVariantId(firstVariant.id);
+          setShirtColorId(Object.keys(firstVariant.photos)[0] || null);
         }
       } catch (e) {
         setError(e.message);
@@ -47,34 +43,37 @@ export default function Studio() {
     })();
   }, []);
 
-  useEffect(() => {
-    setSwipeKey((k) => k + 1);
-  }, [shirtColorId, designColors.primary, designColors.secondary, designId]);
-
-  if (loading) {
-    return <div className="xi-loading"><Loader2 size={20} className="xi-spin" /> Đang tải dữ liệu...</div>;
-  }
-  if (error) {
-    return <div className="xi-error">Không thể kết nối tới máy chủ: {error}. Kiểm tra server đang chạy ở http://localhost:4000.</div>;
-  }
+  if (loading) return <div className="xi-loading"><Loader2 size={20} className="xi-spin" /> Đang tải dữ liệu...</div>;
+  if (error) return <div className="xi-error">Không thể kết nối tới máy chủ: {error}.</div>;
+  if (!designId) return <div className="xi-empty"><p>Chưa có mẫu in nào. Vào trang quản trị (/admin) để thêm mẫu in và ảnh.</p></div>;
 
   const design = designs.find((d) => d.id === designId);
+  const variant = design.variants.find((v) => v.id === variantId) || design.variants[0];
+  const photoUrl = variant?.photos?.[shirtColorId];
   const shirt = shirtColors.find((c) => c.id === shirtColorId);
-  const primaryColor = printColors.find((c) => c.id === designColors.primary);
-  const secondaryColor = printColors.find((c) => c.id === designColors.secondary);
-  const resolved = { primary: primaryColor?.hex, secondary: secondaryColor?.hex };
   const unitPrice = settings.basePrice + (size === "XXL" ? settings.xxlSurcharge : 0);
+
+  function selectDesign(d) {
+    setDesignId(d.id);
+    const v = d.variants.find((v) => Object.keys(v.photos).length > 0) || d.variants[0];
+    setVariantId(v?.id || null);
+    setShirtColorId(Object.keys(v?.photos || {})[0] || null);
+  }
+  function selectVariant(v) {
+    setVariantId(v.id);
+    const availableIds = Object.keys(v.photos);
+    if (!availableIds.includes(shirtColorId)) setShirtColorId(availableIds[0] || null);
+  }
 
   function handleAddToCart() {
     addItem({
-      shirtColorId: shirt.id,
-      shirtName: shirt.name,
-      shirtHex: shirt.hex,
       designId: design.id,
       designName: design.name,
-      designSvg: design.svg,
-      colors: { primary: primaryColor.id, secondary: secondaryColor.id },
-      colorsHex: { primary: primaryColor.hex, secondary: secondaryColor.hex },
+      variantId: variant.id,
+      variantName: variant.name,
+      shirtColorId: shirt.id,
+      shirtName: shirt.name,
+      photo: photoUrl,
       size,
       qty,
       unitPrice,
@@ -85,44 +84,29 @@ export default function Studio() {
     <div>
       <div className="xi-eyebrow">Áo Thun Cổ Tròn — Bản Tiêu Chuẩn</div>
       <h1 className="xi-title">Thiết Kế Áo Của Bạn</h1>
-      <p className="xi-subtitle">
-        Chọn màu áo và màu mẫu in theo bảng màu của xưởng. Mẫu in đã được chuẩn bị sẵn — bạn không cần tải ảnh lên.
-      </p>
+      <p className="xi-subtitle">Chọn mẫu in, màu mực in và màu áo — tất cả đều là ảnh thật do xưởng chụp sẵn.</p>
       <div className="xi-studio-grid">
         <div className="xi-preview-card">
-          <div key={swipeKey} className="xi-swipe-bar" />
-          <ShirtPreview shirtHex={shirt.hex} designSvg={design.svg} colors={resolved} size={280} />
+          {photoUrl ? (
+            <img src={photoUrl} alt={`${design.name} - ${variant?.name} - ${shirt?.name}`} style={{ maxWidth: "100%", maxHeight: 420, objectFit: "contain" }} />
+          ) : (
+            <div style={{ textAlign: "center", color: "#8a8576" }}>
+              <ImageOff size={32} />
+              <p>Chưa có ảnh cho lựa chọn này</p>
+            </div>
+          )}
         </div>
 
         <div>
           <div className="xi-section">
-            <span className="xi-label">Màu áo</span>
-            <div className="xi-swatch-row">
-              {shirtColors.map((c) => (
-                <button key={c.id} title={c.name} aria-label={c.name}
-                  className={`xi-swatch ${shirtColorId === c.id ? "selected" : ""}`}
-                  style={{ background: c.hex }} onClick={() => setShirtColorId(c.id)} />
-              ))}
-            </div>
-          </div>
-
-          <div className="xi-section">
             <span className="xi-label">Mẫu in</span>
             <div className="xi-design-grid">
               {designs.map((d) => {
-                const dr = {
-                  primary: printColors.find((c) => c.id === d.defaultColors.primary)?.hex,
-                  secondary: printColors.find((c) => c.id === d.defaultColors.secondary)?.hex,
-                };
+                const thumbVariant = d.variants.find((v) => Object.keys(v.photos).length > 0);
+                const thumbUrl = thumbVariant ? Object.values(thumbVariant.photos)[0] : null;
                 return (
-                  <button key={d.id} className={`xi-design-thumb ${designId === d.id ? "selected" : ""}`}
-                    onClick={() => { setDesignId(d.id); setDesignColors(d.defaultColors); }}>
-                    <svg width="48" height="48" viewBox="0 0 200 200"
-                      dangerouslySetInnerHTML={{
-                        __html: d.svg
-                          .replaceAll("__PRIMARY__", designId === d.id ? resolved.primary : dr.primary)
-                          .replaceAll("__SECONDARY__", designId === d.id ? resolved.secondary : dr.secondary),
-                      }} />
+                  <button key={d.id} className={`xi-design-thumb ${designId === d.id ? "selected" : ""}`} onClick={() => selectDesign(d)}>
+                    {thumbUrl ? <img src={thumbUrl} alt={d.name} style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 4 }} /> : <ImageOff size={20} />}
                     <span>{d.name}</span>
                   </button>
                 );
@@ -131,26 +115,30 @@ export default function Studio() {
           </div>
 
           <div className="xi-section">
-            <span className="xi-label">Màu hình in — màu chính</span>
+            <span className="xi-label">Màu mực in</span>
             <div className="xi-swatch-row">
-              {printColors.map((c) => (
-                <button key={c.id} title={c.name}
-                  className={`xi-swatch ${designColors.primary === c.id ? "selected" : ""}`}
-                  style={{ background: c.hex }}
-                  onClick={() => setDesignColors((p) => ({ ...p, primary: c.id }))} />
+              {design.variants.map((v) => (
+                <button key={v.id} title={v.name}
+                  className={`xi-swatch ${variantId === v.id ? "selected" : ""}`}
+                  style={{ background: v.swatchHex }}
+                  onClick={() => selectVariant(v)} />
               ))}
             </div>
           </div>
 
           <div className="xi-section">
-            <span className="xi-label">Màu hình in — màu phụ</span>
+            <span className="xi-label">Màu áo</span>
             <div className="xi-swatch-row">
-              {printColors.map((c) => (
-                <button key={c.id} title={c.name}
-                  className={`xi-swatch ${designColors.secondary === c.id ? "selected" : ""}`}
-                  style={{ background: c.hex }}
-                  onClick={() => setDesignColors((p) => ({ ...p, secondary: c.id }))} />
-              ))}
+              {shirtColors.map((c) => {
+                const available = !!variant?.photos?.[c.id];
+                return (
+                  <button key={c.id} title={available ? c.name : `${c.name} (chưa có ảnh)`}
+                    disabled={!available}
+                    className={`xi-swatch ${shirtColorId === c.id ? "selected" : ""}`}
+                    style={{ background: c.hex, opacity: available ? 1 : 0.25, cursor: available ? "pointer" : "not-allowed" }}
+                    onClick={() => available && setShirtColorId(c.id)} />
+                );
+              })}
             </div>
           </div>
 
@@ -177,7 +165,7 @@ export default function Studio() {
               <div className="xi-mono" style={{ fontSize: 12, color: "#8a8576" }}>Đơn giá</div>
               <div className="xi-price">{formatVND(unitPrice)}</div>
             </div>
-            <button className="xi-btn-primary" onClick={handleAddToCart}><ShoppingBag size={18} /> Thêm vào giỏ</button>
+            <button className="xi-btn-primary" onClick={handleAddToCart} disabled={!photoUrl}><ShoppingBag size={18} /> Thêm vào giỏ</button>
           </div>
         </div>
       </div>

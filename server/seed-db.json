@@ -1,0 +1,33 @@
+{
+  "settings": {
+    "basePrice": 149000,
+    "xxlSurcharge": 20000
+  },
+  "shirtColors": [
+    { "id": "teal", "name": "Xanh Ngọc", "hex": "#0B484F" },
+    { "id": "white", "name": "Trắng", "hex": "#FFFFFF" },
+    { "id": "black", "name": "Đen", "hex": "#181816" },
+    { "id": "navy", "name": "Navy", "hex": "#1F3A5F" },
+    { "id": "red", "name": "Đỏ", "hex": "#A63A33" },
+    { "id": "heather", "name": "Xám Tro", "hex": "#A8A6A1" },
+    { "id": "forest", "name": "Xanh Rêu", "hex": "#3F5B43" },
+    { "id": "mustard", "name": "Vàng Mù Tạt", "hex": "#C98A2E" }
+  ],
+  "designs": [
+    {
+      "id": "lazy-athlete-yoga",
+      "name": "Lazy Athlete Yoga",
+      "variants": [
+        {
+          "id": "hong-kem",
+          "name": "Hồng - Kem",
+          "swatchHex": "#E29AAE",
+          "photos": {
+            "teal": "/seed-uploads/lazy-athlete-yoga-teal.jpg"
+          }
+        }
+      ]
+    }
+  ],
+  "orders": []
+}

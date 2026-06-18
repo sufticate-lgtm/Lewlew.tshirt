@@ -3,7 +3,9 @@ const express = require("express");
 const cors = require("cors");
 const crypto = require("crypto");
 const path = require("path");
-const { readDB, writeDB } = require("./db");
+const fs = require("fs");
+const multer = require("multer");
+const { readDB, writeDB, UPLOADS_DIR } = require("./db");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -13,10 +15,31 @@ const SIZES = ["S", "M", "L", "XL", "XXL"];
 app.use(cors({ origin: process.env.CLIENT_ORIGIN || "*" }));
 app.use(express.json());
 
+/* Ảnh mẫu có sẵn (đi kèm code, luôn tồn tại) + ảnh admin tự tải lên (cần ổ đĩa bền để không mất) */
+app.use("/seed-uploads", express.static(path.join(__dirname, "seed-assets", "uploads")));
+app.use("/uploads", express.static(UPLOADS_DIR));
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+    filename: (req, file, cb) => cb(null, crypto.randomUUID() + (path.extname(file.originalname) || ".jpg")),
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith("image/")) return cb(new Error("Chỉ nhận file ảnh."));
+    cb(null, true);
+  },
+});
+
 function genOrderCode() {
   return "XI" + Date.now().toString(36).toUpperCase() + crypto.randomBytes(2).toString("hex").toUpperCase();
 }
-
+function slugify(name) {
+  return (
+    name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d")
+      .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || crypto.randomUUID()
+  );
+}
 function requireAdmin(req, res, next) {
   const supplied = req.header("x-admin-password");
   if (!supplied || supplied !== ADMIN_PASSWORD) {
@@ -27,25 +50,9 @@ function requireAdmin(req, res, next) {
 
 /* ---------------- PUBLIC: catalog ---------------- */
 
-app.get("/api/shirt-colors", (req, res) => {
-  const db = readDB();
-  res.json(db.shirtColors);
-});
-
-app.get("/api/print-colors", (req, res) => {
-  const db = readDB();
-  res.json(db.printColors);
-});
-
-app.get("/api/designs", (req, res) => {
-  const db = readDB();
-  res.json(db.designs);
-});
-
-app.get("/api/settings", (req, res) => {
-  const db = readDB();
-  res.json(db.settings);
-});
+app.get("/api/shirt-colors", (req, res) => res.json(readDB().shirtColors));
+app.get("/api/designs", (req, res) => res.json(readDB().designs));
+app.get("/api/settings", (req, res) => res.json(readDB().settings));
 
 /* ---------------- PUBLIC: orders ---------------- */
 
@@ -65,24 +72,27 @@ app.post("/api/orders", (req, res) => {
 
   const validatedItems = [];
   for (const raw of items) {
-    const shirt = db.shirtColors.find((c) => c.id === raw.shirtColorId);
     const design = db.designs.find((d) => d.id === raw.designId);
-    const primary = db.printColors.find((c) => c.id === raw.colors?.primary);
-    const secondary = db.printColors.find((c) => c.id === raw.colors?.secondary);
+    const variant = design?.variants.find((v) => v.id === raw.variantId);
+    const shirt = db.shirtColors.find((c) => c.id === raw.shirtColorId);
+    const photo = variant?.photos?.[raw.shirtColorId];
     const size = SIZES.includes(raw.size) ? raw.size : null;
     const qty = Number.isInteger(raw.qty) && raw.qty > 0 ? raw.qty : null;
 
-    if (!shirt || !design || !primary || !secondary || !size || !qty) {
-      return res.status(400).json({ error: "Một sản phẩm trong đơn hàng có dữ liệu không hợp lệ." });
+    if (!design || !variant || !shirt || !photo || !size || !qty) {
+      return res.status(400).json({ error: "Một sản phẩm trong đơn hàng không còn tồn tại hoặc thiếu ảnh cho lựa chọn này." });
     }
 
-    // Giá luôn được tính lại ở server, không tin vào giá gửi từ client.
     const unitPrice = db.settings.basePrice + (size === "XXL" ? db.settings.xxlSurcharge : 0);
 
     validatedItems.push({
-      shirtColorId: shirt.id,
       designId: design.id,
-      colors: { primary: primary.id, secondary: secondary.id },
+      designName: design.name,
+      variantId: variant.id,
+      variantName: variant.name,
+      shirtColorId: shirt.id,
+      shirtName: shirt.name,
+      photo,
       size,
       qty,
       unitPrice,
@@ -112,42 +122,37 @@ app.post("/api/orders", (req, res) => {
 });
 
 app.get("/api/orders/:code", (req, res) => {
-  const db = readDB();
-  const order = db.orders.find((o) => o.code === req.params.code.toUpperCase());
+  const order = readDB().orders.find((o) => o.code === req.params.code.toUpperCase());
   if (!order) return res.status(404).json({ error: "Không tìm thấy đơn hàng với mã này." });
   res.json(order);
 });
 
-/* ---------------- ADMIN ---------------- */
+/* ---------------- ADMIN: auth + orders ---------------- */
 
 app.post("/api/admin/login", (req, res) => {
-  const { password } = req.body || {};
-  if (password === ADMIN_PASSWORD) return res.json({ ok: true });
+  if ((req.body || {}).password === ADMIN_PASSWORD) return res.json({ ok: true });
   res.status(401).json({ error: "Sai mật khẩu." });
 });
 
-app.get("/api/admin/orders", requireAdmin, (req, res) => {
-  const db = readDB();
-  res.json(db.orders);
-});
+app.get("/api/admin/orders", requireAdmin, (req, res) => res.json(readDB().orders));
 
 app.patch("/api/admin/orders/:code", requireAdmin, (req, res) => {
   const db = readDB();
   const order = db.orders.find((o) => o.code === req.params.code.toUpperCase());
   if (!order) return res.status(404).json({ error: "Không tìm thấy đơn hàng." });
-  const { status } = req.body || {};
-  if (!status) return res.status(400).json({ error: "Thiếu trạng thái mới." });
-  order.status = status;
+  if (!req.body?.status) return res.status(400).json({ error: "Thiếu trạng thái mới." });
+  order.status = req.body.status;
   writeDB(db);
   res.json(order);
 });
+
+/* ---------------- ADMIN: shirt colors ---------------- */
 
 app.post("/api/admin/shirt-colors", requireAdmin, (req, res) => {
   const db = readDB();
   const { name, hex } = req.body || {};
   if (!name || !hex) return res.status(400).json({ error: "Thiếu tên hoặc mã màu." });
-  const id = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || crypto.randomUUID();
-  db.shirtColors.push({ id, name, hex });
+  db.shirtColors.push({ id: slugify(name), name, hex });
   writeDB(db);
   res.status(201).json(db.shirtColors);
 });
@@ -159,58 +164,96 @@ app.delete("/api/admin/shirt-colors/:id", requireAdmin, (req, res) => {
   res.json(db.shirtColors);
 });
 
-app.post("/api/admin/print-colors", requireAdmin, (req, res) => {
-  const db = readDB();
-  const { name, hex } = req.body || {};
-  if (!name || !hex) return res.status(400).json({ error: "Thiếu tên hoặc mã màu." });
-  const id = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || crypto.randomUUID();
-  db.printColors.push({ id, name, hex });
-  writeDB(db);
-  res.status(201).json(db.printColors);
-});
-
-app.delete("/api/admin/print-colors/:id", requireAdmin, (req, res) => {
-  const db = readDB();
-  db.printColors = db.printColors.filter((c) => c.id !== req.params.id);
-  writeDB(db);
-  res.json(db.printColors);
-});
+/* ---------------- ADMIN: designs, ink variants, photos ---------------- */
 
 app.post("/api/admin/designs", requireAdmin, (req, res) => {
   const db = readDB();
-  const { name, svg, defaultColors } = req.body || {};
-  if (!name || !svg || !defaultColors?.primary || !defaultColors?.secondary) {
-    return res.status(400).json({ error: "Thiếu tên, mã SVG, hoặc màu mặc định." });
-  }
-  if (!svg.includes("__PRIMARY__") || !svg.includes("__SECONDARY__")) {
-    return res.status(400).json({ error: "Mã SVG cần chứa __PRIMARY__ và __SECONDARY__ để khách có thể đổi màu." });
-  }
-  const id = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || crypto.randomUUID();
-  db.designs.push({ id, name, svg, defaultColors });
+  const { name } = req.body || {};
+  if (!name) return res.status(400).json({ error: "Thiếu tên mẫu in." });
+  db.designs.push({ id: slugify(name), name, variants: [] });
   writeDB(db);
   res.status(201).json(db.designs);
 });
 
-app.delete("/api/admin/designs/:id", requireAdmin, (req, res) => {
+app.delete("/api/admin/designs/:designId", requireAdmin, (req, res) => {
   const db = readDB();
-  db.designs = db.designs.filter((d) => d.id !== req.params.id);
+  db.designs = db.designs.filter((d) => d.id !== req.params.designId);
   writeDB(db);
   res.json(db.designs);
+});
+
+app.post("/api/admin/designs/:designId/variants", requireAdmin, (req, res) => {
+  const db = readDB();
+  const design = db.designs.find((d) => d.id === req.params.designId);
+  if (!design) return res.status(404).json({ error: "Không tìm thấy mẫu in." });
+  const { name, swatchHex } = req.body || {};
+  if (!name || !swatchHex) return res.status(400).json({ error: "Thiếu tên hoặc màu đại diện cho biến thể." });
+  design.variants.push({ id: slugify(name), name, swatchHex, photos: {} });
+  writeDB(db);
+  res.status(201).json(db.designs);
+});
+
+app.delete("/api/admin/designs/:designId/variants/:variantId", requireAdmin, (req, res) => {
+  const db = readDB();
+  const design = db.designs.find((d) => d.id === req.params.designId);
+  if (!design) return res.status(404).json({ error: "Không tìm thấy mẫu in." });
+  design.variants = design.variants.filter((v) => v.id !== req.params.variantId);
+  writeDB(db);
+  res.json(db.designs);
+});
+
+app.post(
+  "/api/admin/designs/:designId/variants/:variantId/photo",
+  requireAdmin,
+  upload.single("photo"),
+  (req, res) => {
+    const db = readDB();
+    const design = db.designs.find((d) => d.id === req.params.designId);
+    const variant = design?.variants.find((v) => v.id === req.params.variantId);
+    const shirtColorId = req.body?.shirtColorId;
+    const shirt = db.shirtColors.find((c) => c.id === shirtColorId);
+
+    if (!design || !variant || !shirt) {
+      if (req.file) fs.unlink(req.file.path, () => {});
+      return res.status(404).json({ error: "Không tìm thấy mẫu in / biến thể / màu áo." });
+    }
+    if (!req.file) return res.status(400).json({ error: "Thiếu file ảnh." });
+
+    const oldUrl = variant.photos[shirtColorId];
+    if (oldUrl && oldUrl.startsWith("/uploads/")) {
+      fs.unlink(path.join(UPLOADS_DIR, path.basename(oldUrl)), () => {});
+    }
+    variant.photos[shirtColorId] = `/uploads/${req.file.filename}`;
+    writeDB(db);
+    res.status(201).json(db.designs);
+  }
+);
+
+app.delete("/api/admin/designs/:designId/variants/:variantId/photo/:shirtColorId", requireAdmin, (req, res) => {
+  const db = readDB();
+  const design = db.designs.find((d) => d.id === req.params.designId);
+  const variant = design?.variants.find((v) => v.id === req.params.variantId);
+  if (!design || !variant) return res.status(404).json({ error: "Không tìm thấy mẫu in / biến thể." });
+
+  const url = variant.photos[req.params.shirtColorId];
+  if (url && url.startsWith("/uploads/")) {
+    fs.unlink(path.join(UPLOADS_DIR, path.basename(url)), () => {});
+  }
+  delete variant.photos[req.params.shirtColorId];
+  writeDB(db);
+  res.json(db.designs);
+});
+
+app.use("/api", (req, res) => res.status(404).json({ error: "Không tìm thấy." }));
+app.use((err, req, res, next) => {
+  res.status(400).json({ error: err.message || "Có lỗi xảy ra." });
 });
 
 /* ---------------- SERVE THE BUILT FRONTEND (single deployable service) ---------------- */
 
 const CLIENT_DIST = path.join(__dirname, "..", "client", "dist");
 app.use(express.static(CLIENT_DIST));
-
-app.get("*", (req, res, next) => {
-  if (req.path.startsWith("/api")) return next();
-  res.sendFile(path.join(CLIENT_DIST, "index.html"));
-});
-
-app.use((req, res) => {
-  res.status(404).json({ error: "Không tìm thấy." });
-});
+app.get("*", (req, res) => res.sendFile(path.join(CLIENT_DIST, "index.html")));
 
 app.listen(PORT, () => {
   console.log(`Xưởng.In đang chạy tại http://localhost:${PORT}`);

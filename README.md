@@ -2,11 +2,11 @@
 
 **Không rành kỹ thuật và chỉ muốn đưa web này lên mạng?** Mở file `BAT-DAU-O-DAY.md` trong thư mục này — hướng dẫn từng bước bằng cách bấm chuột, không cần biết code. Phần dưới đây là tài liệu kỹ thuật, dành cho ai muốn hiểu sâu hơn hoặc tự chỉnh sửa code.
 
-Khách chọn áo và mẫu in **có sẵn từ shop**, đổi màu áo + màu hình in theo bảng màu do shop cung cấp (không tải ảnh lên), rồi đặt hàng. Có giỏ hàng, thanh toán, tra cứu đơn hàng, và trang quản trị để quản lý màu áo / màu in / mẫu in / đơn hàng.
+Khách chọn mẫu in, chọn màu mực in (mỗi mẫu có thể có vài biến thể màu), rồi chọn màu áo — mỗi lựa chọn hiển thị **ảnh chụp thật** do bạn tải lên qua trang quản trị (không phải hình vẽ minh hoạ). Có giỏ hàng, thanh toán, tra cứu đơn hàng, và trang quản trị để quản lý màu áo / mẫu in / biến thể màu mực / ảnh / đơn hàng.
 
 ```
 xuongin-shop/
-  server/        API (Node + Express, lưu dữ liệu bằng file JSON)
+  server/        API (Node + Express, lưu dữ liệu bằng file JSON + ảnh tải lên)
   client/        Giao diện khách hàng + trang quản trị (React + Vite)
   package.json   Gộp lệnh cài đặt + build của cả hai, để deploy như MỘT dịch vụ duy nhất
   render.yaml    Cấu hình deploy tự động lên Render (xem BAT-DAU-O-DAY.md)
@@ -40,15 +40,21 @@ npm run build   # cài đặt + build cả client và server thành một bản 
 npm start        # chạy server, lúc này phục vụ luôn cả giao diện tại cùng một địa chỉ
 ```
 
-## 2. Dữ liệu mẫu in và màu sắc
+## 2. Mẫu in, biến thể màu mực, và ảnh
 
-Toàn bộ màu áo, màu hình in, và mẫu in nằm trong `server/data/db.json`, chỉnh được trực tiếp trong trang `/admin` (tab **Màu áo**, **Màu hình in**, **Mẫu in**) — không cần sửa code.
+Vào trang `/admin` → tab **Mẫu in & ảnh**. Cấu trúc dữ liệu có 3 lớp:
 
-Mỗi mẫu in là một đoạn SVG do shop chuẩn bị sẵn, dùng `__PRIMARY__` và `__SECONDARY__` ở chỗ cần đổi màu; khách chỉ chọn màu từ bảng màu, không tải ảnh lên. Muốn có mẫu in phức tạp hơn (nhiều hơn 2 vùng màu, hình minh hoạ chi tiết), cách làm thực tế nhất là thuê designer xuất file SVG rồi dán mã vào ô "Mã SVG" trong trang quản trị.
+1. **Mẫu in** — ví dụ "Lazy Athlete Yoga". Chỉ có tên, không có ảnh trực tiếp.
+2. **Biến thể màu mực** — mỗi mẫu in có thể có nhiều biến thể (ví dụ bản in màu Hồng - Kem, bản in màu Cam - Trắng). Mỗi biến thể có một màu đại diện (chỉ để hiển thị nút chọn, không cần khớp chính xác từng pixel).
+3. **Ảnh theo từng màu áo** — với mỗi biến thể, bạn tải lên một ảnh chụp riêng cho từng màu áo bạn có. Màu áo nào chưa có ảnh thì khách sẽ không chọn được màu đó khi đang xem biến thể này — không có xử lý ảnh tự động, ảnh hiển thị đúng như file bạn tải lên.
 
-## 3. Vì sao dữ liệu lưu bằng file JSON
+Dữ liệu mẫu có sẵn (mẫu "Lazy Athlete Yoga", biến thể "Hồng - Kem", ảnh áo Xanh Ngọc) dùng chính ảnh bạn đã gửi, nằm trong `server/seed-assets/uploads/` — ảnh này nằm trong code nên không bao giờ mất, dùng để bạn thấy ngay kết quả mà không cần tải gì trước.
 
-Để bản này chạy được ngay không cần cài hệ quản trị cơ sở dữ liệu. `server/db.js` là lớp truy cập dữ liệu duy nhất — khi lượng đơn hàng lớn lên, thay nội dung hai hàm `readDB`/`writeDB` bằng truy vấn PostgreSQL/MySQL (ví dụ qua Prisma) mà **không cần sửa** các route trong `server.js`.
+## 3. Vì sao dữ liệu lưu bằng file JSON + ổ đĩa thường — và lưu ý quan trọng
+
+Để bản này chạy được ngay không cần cài hệ quản trị cơ sở dữ liệu. `server/db.js` là lớp truy cập dữ liệu duy nhất — khi lượng đơn hàng lớn lên, thay nội dung hai hàm `readDB`/`writeDB` bằng truy vấn PostgreSQL/MySQL mà **không cần sửa** các route trong `server.js`.
+
+**Lưu ý quan trọng khi deploy lên Render (hoặc bất kỳ nền tảng PaaS miễn phí tương tự):** ổ đĩa của gói miễn phí là "ổ đĩa tạm" — mọi ảnh bạn tải lên qua trang quản trị và mọi đơn hàng mới **sẽ mất** mỗi khi dịch vụ khởi động lại (kể cả việc tự "ngủ" rồi "thức" sau 15 phút không có khách, không chỉ khi bạn chủ động deploy lại). Gói miễn phí dùng tốt để thử nghiệm, nhưng **không nên dùng để bán hàng thật** với dữ liệu này. Xem mục "Khi bạn sẵn sàng bán hàng thật" trong `BAT-DAU-O-DAY.md` để biết cách gắn ổ đĩa bền (Persistent Disk) — chỉ vài cú bấm, không cần sửa code, chi phí thêm rất nhỏ.
 
 ## 4. Thanh toán — phần quan trọng cần làm thêm
 
@@ -66,7 +72,7 @@ Việc tích hợp các cổng trên cần khoá API riêng của bạn (không 
 
 Cách đơn giản nhất, không cần biết kỹ thuật: làm theo `BAT-DAU-O-DAY.md` (dùng GitHub + Render, chỉ bấm chuột).
 
-Cách thủ công nếu bạn quen dòng lệnh: bất kỳ nền tảng nào chạy được Node.js (Render, Railway, một VPS, ...) đều dùng được hai lệnh `npm run build` rồi `npm start` ở thư mục gốc — không cần deploy `client` và `server` riêng, vì server đã phục vụ luôn bản build của client. Chỉ cần đặt biến môi trường `ADMIN_PASSWORD` (đừng dùng giá trị mẫu) trên nền tảng bạn chọn. Nền tảng tự cấp HTTPS, không cần tự cấu hình.
+Cách thủ công nếu bạn quen dòng lệnh: bất kỳ nền tảng nào chạy được Node.js (Render, Railway, một VPS, ...) đều dùng được hai lệnh `npm run build` rồi `npm start` ở thư mục gốc — không cần deploy `client` và `server` riêng, vì server đã phục vụ luôn bản build của client. Chỉ cần đặt biến môi trường `ADMIN_PASSWORD` (đừng dùng giá trị mẫu) trên nền tảng bạn chọn. Nếu nền tảng đó có ổ đĩa bền, đặt thêm `STORAGE_DIR` thành đường dẫn đã mount để ảnh và đơn hàng không bị mất (xem mục 3). Nền tảng tự cấp HTTPS, không cần tự cấu hình.
 
 ## 6. Những phần nên làm tiếp khi shop hoạt động ổn định
 

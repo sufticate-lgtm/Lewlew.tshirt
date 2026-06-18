@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Check, Truck, Landmark, Smartphone, Loader2 } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { createOrder } from "../api";
-import { formatVND } from "../shirtShape";
+import { formatVND } from "../utils";
 
 export default function Checkout() {
   const { cart, total, clearCart } = useApp();
@@ -27,7 +27,7 @@ export default function Checkout() {
     setSubmitting(true);
     try {
       const order = await createOrder({
-        items: cart.map((i) => ({ shirtColorId: i.shirtColorId, designId: i.designId, colors: i.colors, size: i.size, qty: i.qty })),
+        items: cart.map((i) => ({ designId: i.designId, variantId: i.variantId, shirtColorId: i.shirtColorId, size: i.size, qty: i.qty })),
         customer: { name: form.name, phone: form.phone, email: form.email, address: form.address },
         payment: form.payment,
       });

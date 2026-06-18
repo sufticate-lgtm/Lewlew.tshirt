@@ -1,8 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { Plus, Minus, Trash2, ArrowLeft, ChevronRight } from "lucide-react";
-import ShirtPreview from "../components/ShirtPreview";
 import { useApp } from "../context/AppContext";
-import { formatVND } from "../shirtShape";
+import { formatVND } from "../utils";
 
 export default function Cart() {
   const { cart, removeItem, updateQty, total } = useApp();
@@ -23,11 +22,11 @@ export default function Cart() {
       <div className="xi-cart-list">
         {cart.map((item) => (
           <div key={item.id} className="xi-cart-item">
-            <div style={{ width: 64 }}>
-              <ShirtPreview shirtHex={item.shirtHex} designSvg={item.designSvg} colors={item.colorsHex} size={64} />
+            <div style={{ width: 64, height: 64, flexShrink: 0 }}>
+              <img src={item.photo} alt={item.designName} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 6 }} />
             </div>
             <div className="xi-cart-item-info">
-              <div className="xi-cart-item-title">{item.designName} — Áo {item.shirtName}</div>
+              <div className="xi-cart-item-title">{item.designName} — {item.variantName} — Áo {item.shirtName}</div>
               <div className="xi-cart-item-meta">Size {item.size} · {formatVND(item.unitPrice)}/cái</div>
             </div>
             <div className="xi-cart-item-actions">
