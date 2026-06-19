@@ -1,0 +1,494 @@
+import { useEffect, useState, useCallback } from "react";
+import { Trash2, Loader2, LogOut, Upload, ChevronDown, ChevronRight, Settings } from "lucide-react";
+import {
+  adminLogin, adminGetOrders, adminUpdateOrderStatus,
+  adminUpdateSettings, adminUploadRuler,
+  getShirtColors,  adminAddShirtColor, adminPatchShirtColor, adminDeleteShirtColor,
+  getInkColors,    adminAddInkColor,   adminDeleteInkColor,
+  getDesigns,      adminAddDesign,     adminPatchDesign, adminDeleteDesign,
+  adminAddLayer,   adminPatchLayer,    adminDeleteLayer,
+  getSettings,
+} from "../api";
+import ColorEyedropper from "../components/ColorEyedropper";
+import DesignPositioner from "../components/DesignPositioner";
+import { formatVND } from "../utils";
+
+const PW_KEY = "ll_admin_pw";
+const ORDER_STATUSES = ["Đang xử lý","Đang in","Đã giao","Hoàn tất","Đã hủy"];
+
+export default function Admin() {
+  const [password,   setPassword]   = useState(()=>localStorage.getItem(PW_KEY)||"");
+  const [loggedIn,   setLoggedIn]   = useState(false);
+  const [loginInput, setLoginInput] = useState("");
+  const [loginError, setLoginError] = useState(null);
+  const [checking,   setChecking]   = useState(true);
+
+  useEffect(()=>{
+    if(!password){setChecking(false);return;}
+    adminLogin(password).then(()=>setLoggedIn(true))
+      .catch(()=>{localStorage.removeItem(PW_KEY);setPassword("");})
+      .finally(()=>setChecking(false));
+  },[password]);
+
+  async function handleLogin(e){
+    e.preventDefault();setLoginError(null);
+    try{
+      await adminLogin(loginInput);
+      localStorage.setItem(PW_KEY,loginInput);
+      setPassword(loginInput);setLoggedIn(true);
+    }catch(e){setLoginError(e.message);}
+  }
+
+  if(checking) return <div className="xi-loading"><Loader2 size={20} className="xi-spin"/> Đang kiểm tra...</div>;
+  if(!loggedIn) return(
+    <div className="xi-admin-login">
+      <h1 className="xi-title">Đăng Nhập Quản Trị</h1>
+      {loginError && <div className="xi-error">{loginError}</div>}
+      <form onSubmit={handleLogin} className="xi-field">
+        <label>Mật khẩu quản trị</label>
+        <input type="password" value={loginInput} onChange={e=>setLoginInput(e.target.value)} autoFocus/>
+        <button type="submit" className="xi-btn-primary" style={{marginTop:14,justifyContent:"center"}}>Đăng nhập</button>
+      </form>
+    </div>
+  );
+  return <Dashboard password={password} onLogout={()=>{localStorage.removeItem(PW_KEY);setPassword("");setLoggedIn(false);}}/>;
+}
+
+function Dashboard({password,onLogout}){
+  const [tab,setTab]=useState("orders");
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
+        <h1 className="xi-title" style={{marginBottom:0}}>Trang Quản Trị</h1>
+        <button className="xi-btn-secondary" onClick={onLogout}><LogOut size={16}/> Đăng xuất</button>
+      </div>
+      <div className="xi-tabs">
+        {[["orders","Đơn hàng"],["shirts","Màu áo"],["inks","Màu mực"],["designs","Hình in"],["settings","Cài đặt"]].map(([id,label])=>(
+          <button key={id} className={tab===id?"active":""} onClick={()=>setTab(id)}>{label}</button>
+        ))}
+      </div>
+      {tab==="orders"   && <OrdersTab   password={password}/>}
+      {tab==="shirts"   && <ShirtsTab   password={password}/>}
+      {tab==="inks"     && <InksTab     password={password}/>}
+      {tab==="designs"  && <DesignsTab  password={password}/>}
+      {tab==="settings" && <SettingsTab password={password}/>}
+    </div>
+  );
+}
+
+/* ── Đơn hàng ──────────────────────────────────────────────── */
+function OrdersTab({password}){
+  const [orders,setOrders]=useState(null);
+  const [error,setError]=useState(null);
+  function load(){adminGetOrders(password).then(setOrders).catch(e=>setError(e.message));}
+  useEffect(load,[password]);
+  async function changeStatus(code,status){
+    try{await adminUpdateOrderStatus(password,code,status);load();}catch(e){setError(e.message);}
+  }
+  if(error) return <div className="xi-error">{error}</div>;
+  if(!orders) return <div className="xi-loading"><Loader2 size={20} className="xi-spin"/> Đang tải...</div>;
+  if(!orders.length) return <p>Chưa có đơn hàng nào.</p>;
+  return(
+    <div className="xi-orders-list">
+      {orders.map(o=>(
+        <div key={o.code} className="xi-order-card">
+          <div className="xi-order-head">
+            <div>
+              <div className="xi-mono" style={{fontWeight:700}}>{o.code}</div>
+              <div className="xi-cart-item-meta">{o.customer.name} · {o.customer.phone} · {new Date(o.createdAt).toLocaleString("vi-VN")}</div>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <strong>{formatVND(o.total)}</strong>
+              <select value={o.status} onChange={e=>changeStatus(o.code,e.target.value)}>
+                {ORDER_STATUSES.map(s=><option key={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{marginTop:10,fontSize:13,color:"#6b675c"}}>
+            {o.items.map((it,i)=>(
+              <div key={i} style={{marginBottom:4}}>
+                {it.designName} · Áo {it.shirtName} ·{" "}
+                {it.layerColors?.map(lc=>(
+                  <span key={lc.layerId} style={{display:"inline-flex",alignItems:"center",gap:3,marginRight:6}}>
+                    <span style={{width:10,height:10,borderRadius:"50%",background:lc.inkHex,border:"1px solid #ccc",display:"inline-block"}}/>
+                    {lc.inkName}
+                  </span>
+                ))}
+                · {it.size} x{it.qty}
+              </div>
+            ))}
+            <div>Địa chỉ: {o.customer.address}</div>
+            <div>TT: {o.payment==="cod"?"COD":o.payment==="bank"?"CK":"Momo"}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── Màu áo + ảnh + eyedropper ─────────────────────────────── */
+function ShirtsTab({password}){
+  const [list,setList]=useState(null);
+  const [name,setName]=useState("");
+  const [hex,setHex]=useState("#444444");
+  const [file,setFile]=useState(null);
+  const [previewUrl,setPreviewUrl]=useState(null);
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState(null);
+  const [editHex,setEditHex]=useState({}); // {id: hex}
+
+  function load(){getShirtColors().then(setList).catch(e=>setError(e.message));}
+  useEffect(load,[]);
+
+  function onFileChange(f){
+    setFile(f);
+    if(f) setPreviewUrl(URL.createObjectURL(f));
+    else setPreviewUrl(null);
+  }
+
+  async function handleAdd(e){
+    e.preventDefault();if(!file)return setError("Cần chọn ảnh mockup.");
+    setBusy(true);setError(null);
+    try{await adminAddShirtColor(password,name,hex,file);setName("");setFile(null);setPreviewUrl(null);load();}
+    catch(e){setError(e.message);}finally{setBusy(false);}
+  }
+
+  async function handlePatchHex(id){
+    const newHex=editHex[id];if(!newHex)return;
+    try{await adminPatchShirtColor(password,id,{hex:newHex});load();}
+    catch(e){setError(e.message);}
+  }
+
+  if(!list) return <div className="xi-loading"><Loader2 size={20} className="xi-spin"/></div>;
+  return(
+    <div>
+      <p className="xi-subtitle">Tải lên ảnh mockup áo trơn (chưa có hình in). Dùng eyedropper để lấy đúng màu vải từ ảnh.</p>
+      {error && <div className="xi-error">{error}</div>}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:14,marginBottom:24}}>
+        {list.map(c=>(
+          <div key={c.id} style={{textAlign:"center",background:"#fff",border:"2px solid var(--line)",borderRadius:8,padding:10}}>
+            <div style={{position:"relative"}}>
+              <img src={c.photo} alt={c.name} style={{width:"100%",height:110,objectFit:"cover",borderRadius:6,border:"2px solid var(--line)"}}/>
+              <button onClick={async()=>{if(!confirm("Xoá màu này?"))return;try{await adminDeleteShirtColor(password,c.id);load();}catch(e){setError(e.message);}}}
+                style={{position:"absolute",top:3,right:3,background:"rgba(0,0,0,.6)",border:"none",color:"#fff",borderRadius:"50%",width:22,height:22,cursor:"pointer",fontSize:14}}>×</button>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:6,marginTop:8,justifyContent:"center"}}>
+              <input type="color" value={editHex[c.id]||c.hex} onChange={e=>setEditHex(ev=>({...ev,[c.id]:e.target.value}))}
+                style={{width:24,height:24,border:"none",background:"none",cursor:"pointer"}}/>
+              <span style={{fontSize:12,fontWeight:600}}>{c.name}</span>
+              {editHex[c.id]&&editHex[c.id]!==c.hex&&(
+                <button onClick={()=>handlePatchHex(c.id)} style={{fontSize:11,background:"var(--ink)",color:"#fff",border:"none",borderRadius:3,padding:"2px 6px",cursor:"pointer"}}>Lưu</button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <form onSubmit={handleAdd}>
+        <div className="xi-form-grid" style={{maxWidth:480,marginBottom:12}}>
+          <div className="xi-field"><label>Tên màu áo *</label>
+            <input value={name} onChange={e=>setName(e.target.value)} placeholder="VD: Xanh Đậm" required/>
+          </div>
+          <div className="xi-field"><label>Màu đại diện</label>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              <input type="color" value={hex} onChange={e=>setHex(e.target.value)}/>
+              <span className="xi-mono" style={{fontSize:12}}>{hex}</span>
+            </div>
+          </div>
+        </div>
+        <label style={{display:"inline-flex",alignItems:"center",gap:8,cursor:"pointer",border:"2px dashed var(--line)",padding:"10px 16px",borderRadius:6,marginBottom:12}}>
+          <Upload size={16}/>{file?file.name:"Chọn ảnh mockup áo trơn *"}
+          <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>onFileChange(e.target.files[0])}/>
+        </label>
+        {previewUrl && (
+          <ColorEyedropper imageUrl={previewUrl} onColor={h=>setHex(h)} style={{marginBottom:12,maxWidth:480}}/>
+        )}
+        <br/>
+        <button type="submit" className="xi-btn-primary" disabled={busy}>
+          {busy&&<Loader2 size={16} className="xi-spin"/>} Thêm màu áo
+        </button>
+      </form>
+    </div>
+  );
+}
+
+/* ── Màu mực ────────────────────────────────────────────────── */
+function InksTab({password}){
+  const [list,setList]=useState(null);
+  const [name,setName]=useState("");
+  const [hex,setHex]=useState("#FF0000");
+  const [error,setError]=useState(null);
+  function load(){getInkColors().then(setList).catch(e=>setError(e.message));}
+  useEffect(load,[]);
+  async function handleAdd(e){
+    e.preventDefault();setError(null);
+    try{await adminAddInkColor(password,{name,hex});setName("");load();}
+    catch(e){setError(e.message);}
+  }
+  if(!list) return <div className="xi-loading"><Loader2 size={20} className="xi-spin"/></div>;
+  return(
+    <div>
+      <p className="xi-subtitle">Bảng màu mực này áp dụng cho tất cả hình in. Khách chọn màu từ đây cho từng layer.</p>
+      {error&&<div className="xi-error">{error}</div>}
+      <div style={{display:"flex",flexWrap:"wrap",gap:10,marginBottom:24}}>
+        {list.map(c=>(
+          <div key={c.id} style={{display:"flex",alignItems:"center",gap:6,background:"#fff",border:"2px solid var(--line)",borderRadius:30,padding:"6px 12px 6px 8px"}}>
+            <div style={{width:20,height:20,borderRadius:"50%",background:c.hex,border:"1px solid #ccc",flexShrink:0}}/>
+            <span style={{fontSize:13,fontWeight:600}}>{c.name}</span>
+            <button onClick={async()=>{try{await adminDeleteInkColor(password,c.id);load();}catch(e){setError(e.message);}}}
+              style={{background:"none",border:"none",cursor:"pointer",color:"#a8453a",padding:0,marginLeft:2}}><Trash2 size={14}/></button>
+          </div>
+        ))}
+      </div>
+      <form onSubmit={handleAdd} style={{display:"flex",gap:10,alignItems:"flex-end",flexWrap:"wrap",maxWidth:460}}>
+        <div className="xi-field" style={{flex:1,minWidth:160}}><label>Tên màu</label>
+          <input value={name} onChange={e=>setName(e.target.value)} placeholder="VD: Hồng Sen" required/>
+        </div>
+        <div className="xi-field"><label>Mã màu</label>
+          <input type="color" value={hex} onChange={e=>setHex(e.target.value)}/>
+        </div>
+        <button type="submit" className="xi-btn-primary">Thêm màu mực</button>
+      </form>
+    </div>
+  );
+}
+
+/* ── Hình in + layers + positioner ─────────────────────────── */
+function DesignsTab({password}){
+  const [designs,setDesigns]=useState(null);
+  const [inkColors,setInkColors]=useState([]);
+  const [settings,setSettings]=useState(null);
+  const [newName,setNewName]=useState("");
+  const [error,setError]=useState(null);
+  const [expanded,setExpanded]=useState(null);
+
+  function load(){
+    Promise.all([getDesigns(),getInkColors(),getSettings()])
+      .then(([d,ic,s])=>{setDesigns(d);setInkColors(ic);setSettings(s);})
+      .catch(e=>setError(e.message));
+  }
+  useEffect(load,[]);
+
+  async function handleAddDesign(e){
+    e.preventDefault();setError(null);
+    try{
+      const updated = await adminAddDesign(password,newName);
+      setNewName("");
+      // Tu dong mo rong design vua tao (luon la phan tu cuoi cung)
+      if(updated.length>0) setExpanded(updated[updated.length-1].id);
+      load();
+    }catch(e){setError(e.message);}
+  }
+
+  if(!designs) return <div className="xi-loading"><Loader2 size={20} className="xi-spin"/></div>;
+  return(
+    <div>
+      <p className="xi-subtitle">
+        Quy trình: <strong>1)</strong> Tạo hình in mới (nhập tên → bấm + Hình in) → <strong>2)</strong> Thêm layer PNG đen cho từng vùng màu → <strong>3)</strong> Kéo hộp cam trên thước để canh vị trí in → bấm Lưu vị trí.
+      </p>
+      {error&&<div className="xi-error">{error}</div>}
+
+      {designs.map(d=>(
+        <DesignCard key={d.id} design={d} inkColors={inkColors} settings={settings}
+          password={password} onChange={load} setError={setError}
+          expanded={expanded===d.id} onToggle={()=>setExpanded(expanded===d.id?null:d.id)}/>
+      ))}
+
+      <form onSubmit={handleAddDesign} style={{display:"flex",gap:10,maxWidth:460,marginTop:8}}>
+        <input value={newName} onChange={e=>setNewName(e.target.value)}
+          placeholder="Tên hình in mới, VD: Mèo Yoga" required
+          style={{flex:1,border:"2px solid var(--ink)",borderRadius:3,padding:"10px 12px",fontFamily:"Work Sans",fontSize:14}}/>
+        <button className="xi-btn-primary" type="submit">+ Hình in</button>
+      </form>
+    </div>
+  );
+}
+
+function DesignCard({design,inkColors,settings,password,onChange,setError,expanded,onToggle}){
+  const [printArea,setPrintArea]=useState(design.printArea);
+  const [savingPos,setSavingPos]=useState(false);
+  const [newLayer,setNewLayer]=useState({name:"",defaultInkId:"",file:null});
+  const [busy,setBusy]=useState(false);
+
+  const rulerPhotoUrl = settings?.rulerMockupPhoto || settings?.rulerPhoto;
+  const calibration   = settings?.printCalibration;
+
+  const handlePrintAreaChange = useCallback(area=>{setPrintArea(area);},[]);
+
+  async function savePosition(){
+    setSavingPos(true);
+    try{await adminPatchDesign(password,design.id,{printArea});onChange();}
+    catch(e){setError(e.message);}finally{setSavingPos(false);}
+  }
+
+  async function handleAddLayer(e){
+    e.preventDefault();if(!newLayer.file)return setError("Cần chọn file PNG.");
+    setBusy(true);
+    try{
+      await adminAddLayer(password,design.id,newLayer.name,newLayer.defaultInkId||inkColors[0]?.id,newLayer.file);
+      setNewLayer({name:"",defaultInkId:"",file:null});onChange();
+    }catch(e){setError(e.message);}finally{setBusy(false);}
+  }
+
+  return(
+    <div className="xi-order-card" style={{marginBottom:16}}>
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer"}} onClick={onToggle}>
+        {expanded?<ChevronDown size={18}/>:<ChevronRight size={18}/>}
+        <strong style={{fontSize:16,flex:1}}>{design.name}</strong>
+        <div style={{display:"flex",gap:6}}>
+          {design.layers.slice(0,3).map(l=>(
+            <img key={l.id} src={l.png} alt={l.name}
+              style={{width:32,height:32,objectFit:"contain",filter:"brightness(0)",background:"#f0f0f0",borderRadius:4,padding:2}}/>
+          ))}
+          {design.layers.length>3 && <span style={{fontSize:12,color:"#8a8576"}}>+{design.layers.length-3}</span>}
+        </div>
+        <button onClick={e=>{e.stopPropagation();if(!confirm("Xoá hình in này?"))return;
+          adminDeleteDesign(password,design.id).then(onChange).catch(e=>setError(e.message));}}
+          className="xi-remove-btn"><Trash2 size={16}/></button>
+      </div>
+
+      {expanded&&(
+        <div style={{marginTop:16,paddingTop:16,borderTop:"1px solid var(--line)"}}>
+          {/* Positioner TRUOC - de admin thay ngay vi tri khi mo card */}
+          <div style={{marginBottom:24}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+              <span className="xi-label" style={{marginBottom:0}}>📍 Vị trí & kích thước in trên áo</span>
+              <button className="xi-btn-primary" style={{padding:"8px 16px"}}
+                onClick={savePosition} disabled={savingPos}>
+                {savingPos&&<Loader2 size={14} className="xi-spin"/>} Lưu vị trí
+              </button>
+            </div>
+            <p style={{fontSize:12,color:"#8a8576",marginBottom:10}}>
+              Kéo hộp cam để di chuyển hình in. Kéo góc cam (góc dưới phải) để thay đổi kích thước. Bấm Lưu vị trí khi xong.
+            </p>
+            <DesignPositioner
+              rulerPhotoUrl={rulerPhotoUrl}
+              designLayers={design.layers}
+              printArea={printArea}
+              calibration={calibration}
+              onChange={handlePrintAreaChange}/>
+          </div>
+
+          {/* Layers */}
+          <div style={{marginBottom:20}}>
+            <span className="xi-label">Layers màu mực</span>
+            {design.layers.length===0 && <p style={{fontSize:13,color:"#8a8576"}}>Chưa có layer nào. Thêm layer bên dưới.</p>}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:10,marginBottom:16}}>
+              {design.layers.map(l=>(
+                <div key={l.id} style={{background:"#f8f5ef",border:"2px solid var(--line)",borderRadius:8,padding:10,textAlign:"center"}}>
+                  <div style={{background:"#e8e5de",borderRadius:6,padding:8,marginBottom:8}}>
+                    <img src={l.png} alt={l.name} style={{width:60,height:60,objectFit:"contain",filter:"brightness(0)"}}/>
+                  </div>
+                  <div style={{fontSize:12,fontWeight:700,marginBottom:4}}>{l.name}</div>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:4,marginBottom:6}}>
+                    <div style={{width:12,height:12,borderRadius:"50%",background:inkColors.find(c=>c.id===l.defaultInkId)?.hex||"#888",border:"1px solid #ccc"}}/>
+                    <span style={{fontSize:11,color:"#6b675c"}}>{inkColors.find(c=>c.id===l.defaultInkId)?.name||"—"}</span>
+                  </div>
+                  <select value={l.defaultInkId||""} style={{fontSize:11,width:"100%",marginBottom:6}}
+                    onChange={async e=>{try{await adminPatchLayer(password,design.id,l.id,{defaultInkId:e.target.value});onChange();}catch(e2){setError(e2.message);}}}>
+                    {inkColors.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <button className="xi-remove-btn" style={{fontSize:11,margin:"0 auto",display:"flex",alignItems:"center",gap:3}}
+                    onClick={async()=>{if(!confirm("Xoá layer này?"))return;try{await adminDeleteLayer(password,design.id,l.id);onChange();}catch(e){setError(e.message);}}}>
+                    <Trash2 size={12}/> Xoá
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Thêm layer */}
+            <form onSubmit={handleAddLayer} style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end",background:"#f8f5ef",padding:12,borderRadius:8}}>
+              <div className="xi-field" style={{flex:1,minWidth:160}}><label>Tên layer *</label>
+                <input value={newLayer.name} onChange={e=>setNewLayer(l=>({...l,name:e.target.value}))} placeholder="VD: Thân mèo" required/>
+              </div>
+              <div className="xi-field"><label>Màu mặc định</label>
+                <select value={newLayer.defaultInkId} onChange={e=>setNewLayer(l=>({...l,defaultInkId:e.target.value}))}>
+                  <option value="">— Chọn —</option>
+                  {inkColors.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{display:"inline-flex",alignItems:"center",gap:6,cursor:"pointer",border:"2px dashed var(--line)",padding:"8px 12px",borderRadius:6,fontSize:13}}>
+                  <Upload size={14}/>{newLayer.file?newLayer.file.name:"PNG / TIFF *"}
+                  <input type="file" accept=".png,.tif,.tiff,image/png,image/tiff" style={{display:"none"}}
+                    onChange={e=>setNewLayer(l=>({...l,file:e.target.files[0]}))}/>
+                </label>
+              </div>
+              <button type="submit" className="xi-btn-secondary" disabled={busy}>
+                {busy&&<Loader2 size={14} className="xi-spin"/>} + Thêm layer
+              </button>
+            </form>
+          </div>
+
+
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Cài đặt (ruler upload + calibration) ───────────────────── */
+function SettingsTab({password}){
+  const [settings,setSettings]=useState(null);
+  const [busy,setBusy]=useState(null);
+  const [error,setError]=useState(null);
+  const [cal,setCal]=useState(null);
+
+  function load(){getSettings().then(s=>{setSettings(s);setCal(s.printCalibration);}).catch(e=>setError(e.message));}
+  useEffect(load,[]);
+
+  async function handleRulerUpload(field,file){
+    setBusy(field);setError(null);
+    try{const s=await adminUploadRuler(password,field,file);setSettings(s);}
+    catch(e){setError(e.message);}finally{setBusy(null);}
+  }
+
+  async function saveCalibration(){
+    setBusy("cal");setError(null);
+    try{const s=await adminUpdateSettings(password,{printCalibration:cal});setSettings(s);}
+    catch(e){setError(e.message);}finally{setBusy(null);}
+  }
+
+  if(!settings) return <div className="xi-loading"><Loader2 size={20} className="xi-spin"/></div>;
+  return(
+    <div>
+      {error&&<div className="xi-error">{error}</div>}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:24,marginBottom:32}}>
+        {[["rulerMockupPhoto","Ảnh thước đo trên áo (dùng để định vị hình in)"],
+          ["rulerPhoto","Ảnh thước đo độc lập (tham khảo)"]].map(([field,label])=>(
+          <div key={field}>
+            <span className="xi-label">{label}</span>
+            {settings[field]&&<img src={settings[field]} alt={field} style={{width:"100%",maxHeight:180,objectFit:"contain",borderRadius:6,border:"2px solid var(--line)",marginBottom:8}}/>}
+            <label style={{display:"inline-flex",alignItems:"center",gap:6,cursor:"pointer",border:"2px dashed var(--line)",padding:"8px 12px",borderRadius:6,fontSize:13}}>
+              <Upload size={14}/> Tải lên / Cập nhật
+              <input type="file" accept="image/*" style={{display:"none"}}
+                onChange={e=>e.target.files[0]&&handleRulerUpload(field,e.target.files[0])}/>
+            </label>
+            {busy===field&&<span style={{marginLeft:8,fontSize:12,color:"#8a8576"}}>Đang tải...</span>}
+          </div>
+        ))}
+      </div>
+
+      {cal&&(
+        <div style={{background:"#f8f5ef",borderRadius:8,padding:16,maxWidth:480}}>
+          <span className="xi-label" style={{display:"flex",alignItems:"center",gap:6}}><Settings size={16}/> Hiệu chỉnh thước đo (calibration)</span>
+          <p style={{fontSize:13,color:"#6b675c",marginBottom:14}}>
+            Các giá trị này xác định vị trí điểm gốc (0,0) của thước đo trên ảnh mockup và tỉ lệ cm/pixel.
+            Dựa vào ảnh <strong>MOCK_UP_CO_THUOC.jpg</strong> đã phân tích: origin ở 50.3% ngang, 26.1% dọc; 1cm = 1.35% chiều rộng ảnh.
+          </p>
+          {[["originX","Điểm gốc X (fraction 0-1)","0.503"],["originY","Điểm gốc Y (fraction 0-1)","0.261"],["fracPerCm","1 cm = ? fraction ngang ảnh","0.0135"]].map(([key,label,hint])=>(
+            <div key={key} className="xi-field" style={{marginBottom:10}}>
+              <label>{label} <span style={{fontWeight:400,color:"#8a8576"}}>({hint} hiện tại)</span></label>
+              <input type="number" step="0.001" value={cal[key]||""} onChange={e=>setCal(c=>({...c,[key]:parseFloat(e.target.value)}))}
+                style={{fontFamily:"JetBrains Mono"}}/>
+            </div>
+          ))}
+          <button className="xi-btn-primary" onClick={saveCalibration} disabled={busy==="cal"}>
+            {busy==="cal"&&<Loader2 size={14} className="xi-spin"/>} Lưu calibration
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

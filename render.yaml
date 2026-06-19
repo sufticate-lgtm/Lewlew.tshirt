@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: xuongin-shop
+    name: lewlew-tshirt
     runtime: node
     plan: free
     buildCommand: npm run build
