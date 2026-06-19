@@ -1,69 +1,53 @@
 const API_URL = import.meta.env.VITE_API_URL || "/api";
 
 async function request(path, opts = {}) {
-  const res = await fetch(`${API_URL}${path}`, { ...opts });
+  const res = await fetch(`${API_URL}${path}`, opts);
   if (!res.ok) {
-    let message = "Có lỗi xảy ra, vui lòng thử lại.";
-    try {
-      const body = await res.json();
-      message = body.error || message;
-    } catch (e) {}
-    throw new Error(message);
+    let msg = "Có lỗi xảy ra.";
+    try { msg = (await res.json()).error || msg; } catch {}
+    throw new Error(msg);
   }
   return res.json();
 }
 
-function jsonOpts(method, body, headers) {
-  return { method, headers: { "Content-Type": "application/json", ...(headers || {}) }, body: JSON.stringify(body) };
-}
+const json = (method, body, pw) => ({
+  method,
+  headers: { "Content-Type": "application/json", ...(pw ? { "x-admin-password": pw } : {}) },
+  body: JSON.stringify(body),
+});
+const auth = pw => ({ headers: { "x-admin-password": pw } });
 
-export const getShirtColors = () => request("/shirt-colors");
-export const getDesigns = () => request("/designs");
-export const getSettings = () => request("/settings");
-export const createOrder = (payload) => request("/orders", jsonOpts("POST", payload));
-export const getOrder = (code) => request(`/orders/${encodeURIComponent(code)}`);
+export const getShirtColors = ()              => request("/shirt-colors");
+export const getInkColors   = ()              => request("/ink-colors");
+export const getDesigns      = ()              => request("/designs");
+export const getSettings     = ()              => request("/settings");
+export const createOrder     = (payload)       => request("/orders", json("POST", payload));
+export const getOrder        = (code)          => request(`/orders/${encodeURIComponent(code)}`);
 
-export const adminLogin = (password) => request("/admin/login", jsonOpts("POST", { password }));
+export const adminLogin             = (pw)            => request("/admin/login", json("POST", { password: pw }));
+export const adminGetOrders         = (pw)            => request("/admin/orders", auth(pw));
+export const adminUpdateOrderStatus = (pw, code, st)  =>
+  request(`/admin/orders/${encodeURIComponent(code)}`, json("PATCH", { status: st }, pw));
 
-export const adminGetOrders = (password) => request("/admin/orders", { headers: { "x-admin-password": password } });
-
-export const adminUpdateOrderStatus = (password, code, status) =>
-  request(`/admin/orders/${encodeURIComponent(code)}`, jsonOpts("PATCH", { status }, { "x-admin-password": password }));
-
-export const adminAddShirtColor = (password, data) =>
-  request("/admin/shirt-colors", jsonOpts("POST", data, { "x-admin-password": password }));
-
-export const adminDeleteShirtColor = (password, id) =>
-  request(`/admin/shirt-colors/${encodeURIComponent(id)}`, { method: "DELETE", headers: { "x-admin-password": password } });
-
-export const adminAddDesign = (password, name) =>
-  request("/admin/designs", jsonOpts("POST", { name }, { "x-admin-password": password }));
-
-export const adminDeleteDesign = (password, designId) =>
-  request(`/admin/designs/${encodeURIComponent(designId)}`, { method: "DELETE", headers: { "x-admin-password": password } });
-
-export const adminAddVariant = (password, designId, data) =>
-  request(`/admin/designs/${encodeURIComponent(designId)}/variants`, jsonOpts("POST", data, { "x-admin-password": password }));
-
-export const adminDeleteVariant = (password, designId, variantId) =>
-  request(`/admin/designs/${encodeURIComponent(designId)}/variants/${encodeURIComponent(variantId)}`, {
-    method: "DELETE",
-    headers: { "x-admin-password": password },
-  });
-
-export const adminUploadVariantPhoto = (password, designId, variantId, shirtColorId, file) => {
+// Shirt colors – form-data vì có ảnh
+export const adminAddShirtColor = (pw, name, hex, photoFile) => {
   const form = new FormData();
-  form.append("shirtColorId", shirtColorId);
-  form.append("photo", file);
-  return request(`/admin/designs/${encodeURIComponent(designId)}/variants/${encodeURIComponent(variantId)}/photo`, {
-    method: "POST",
-    headers: { "x-admin-password": password },
-    body: form,
-  });
+  form.append("name", name); form.append("hex", hex); form.append("photo", photoFile);
+  return request("/admin/shirt-colors", { method: "POST", headers: { "x-admin-password": pw }, body: form });
 };
+export const adminDeleteShirtColor = (pw, id) =>
+  request(`/admin/shirt-colors/${encodeURIComponent(id)}`, { method: "DELETE", ...auth(pw) });
 
-export const adminDeleteVariantPhoto = (password, designId, variantId, shirtColorId) =>
-  request(
-    `/admin/designs/${encodeURIComponent(designId)}/variants/${encodeURIComponent(variantId)}/photo/${encodeURIComponent(shirtColorId)}`,
-    { method: "DELETE", headers: { "x-admin-password": password } }
-  );
+// Ink colors
+export const adminAddInkColor    = (pw, data) => request("/admin/ink-colors",  json("POST", data, pw));
+export const adminDeleteInkColor = (pw, id)   =>
+  request(`/admin/ink-colors/${encodeURIComponent(id)}`,  { method: "DELETE", ...auth(pw) });
+
+// Designs – form-data vì có PNG
+export const adminAddDesign = (pw, name, pngFile) => {
+  const form = new FormData();
+  form.append("name", name); form.append("png", pngFile);
+  return request("/admin/designs", { method: "POST", headers: { "x-admin-password": pw }, body: form });
+};
+export const adminDeleteDesign = (pw, id) =>
+  request(`/admin/designs/${encodeURIComponent(id)}`, { method: "DELETE", ...auth(pw) });

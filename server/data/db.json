@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 3,
+  "settings": {
+    "basePrice": 149000,
+    "xxlSurcharge": 20000
+  },
+  "shirtColors": [
+    {
+      "id": "teal",
+      "name": "Xanh Ngọc",
+      "hex": "#0B5C63",
+      "photo": "/seed-uploads/shirt-teal.jpg"
+    }
+  ],
+  "inkColors": [
+    {
+      "id": "white",
+      "name": "Trắng",
+      "hex": "#FFFFFF"
+    },
+    {
+      "id": "cream",
+      "name": "Kem",
+      "hex": "#F5ECD7"
+    },
+    {
+      "id": "pink",
+      "name": "Hồng",
+      "hex": "#F4748C"
+    },
+    {
+      "id": "red",
+      "name": "Đỏ",
+      "hex": "#E03131"
+    },
+    {
+      "id": "orange",
+      "name": "Cam",
+      "hex": "#F76707"
+    },
+    {
+      "id": "yellow",
+      "name": "Vàng",
+      "hex": "#F5C800"
+    },
+    {
+      "id": "green",
+      "name": "Xanh Lá",
+      "hex": "#2F9E44"
+    },
+    {
+      "id": "teal2",
+      "name": "Xanh Ngọc",
+      "hex": "#0C8599"
+    },
+    {
+      "id": "blue",
+      "name": "Xanh Dương",
+      "hex": "#1971C2"
+    },
+    {
+      "id": "purple",
+      "name": "Tím",
+      "hex": "#7048E8"
+    },
+    {
+      "id": "black",
+      "name": "Đen",
+      "hex": "#212529"
+    }
+  ],
+  "designs": [
+    {
+      "id": "yoga-cat",
+      "name": "Mèo Yoga",
+      "png": "/seed-uploads/yoga-cat-black.png"
+    }
+  ],
+  "orders": [
+    {
+      "code": "XIMQKCXSPB27D6",
+      "items": [
+        {
+          "designId": "yoga-cat",
+          "designName": "Mèo Yoga",
+          "designPng": "/seed-uploads/yoga-cat-black.png",
+          "shirtColorId": "teal",
+          "shirtName": "Xanh Ngọc",
+          "shirtPhoto": "/seed-uploads/shirt-teal.jpg",
+          "inkColorId": "pink",
+          "inkName": "Hồng",
+          "inkHex": "#F4748C",
+          "size": "M",
+          "qty": 1,
+          "unitPrice": 149000
+        }
+      ],
+      "customer": {
+        "name": "Test",
+        "phone": "0900000000",
+        "email": "",
+        "address": "HCM"
+      },
+      "payment": "cod",
+      "total": 149000,
+      "status": "Đang xử lý",
+      "createdAt": "2026-06-19T03:16:46.608Z"
+    }
+  ]
+}

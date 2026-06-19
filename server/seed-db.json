@@ -1,32 +1,35 @@
 {
+  "schemaVersion": 3,
   "settings": {
     "basePrice": 149000,
     "xxlSurcharge": 20000
   },
   "shirtColors": [
-    { "id": "teal", "name": "Xanh Ngọc", "hex": "#0B484F" },
-    { "id": "white", "name": "Trắng", "hex": "#FFFFFF" },
-    { "id": "black", "name": "Đen", "hex": "#181816" },
-    { "id": "navy", "name": "Navy", "hex": "#1F3A5F" },
-    { "id": "red", "name": "Đỏ", "hex": "#A63A33" },
-    { "id": "heather", "name": "Xám Tro", "hex": "#A8A6A1" },
-    { "id": "forest", "name": "Xanh Rêu", "hex": "#3F5B43" },
-    { "id": "mustard", "name": "Vàng Mù Tạt", "hex": "#C98A2E" }
+    {
+      "id": "teal",
+      "name": "Xanh Ngọc",
+      "hex": "#0B5C63",
+      "photo": "/seed-uploads/shirt-teal.jpg"
+    }
+  ],
+  "inkColors": [
+    { "id": "white",  "name": "Trắng",       "hex": "#FFFFFF" },
+    { "id": "cream",  "name": "Kem",          "hex": "#F5ECD7" },
+    { "id": "pink",   "name": "Hồng",         "hex": "#F4748C" },
+    { "id": "red",    "name": "Đỏ",           "hex": "#E03131" },
+    { "id": "orange", "name": "Cam",          "hex": "#F76707" },
+    { "id": "yellow", "name": "Vàng",         "hex": "#F5C800" },
+    { "id": "green",  "name": "Xanh Lá",      "hex": "#2F9E44" },
+    { "id": "teal2",  "name": "Xanh Ngọc",   "hex": "#0C8599" },
+    { "id": "blue",   "name": "Xanh Dương",   "hex": "#1971C2" },
+    { "id": "purple", "name": "Tím",          "hex": "#7048E8" },
+    { "id": "black",  "name": "Đen",          "hex": "#212529" }
   ],
   "designs": [
     {
-      "id": "lazy-athlete-yoga",
-      "name": "Lazy Athlete Yoga",
-      "variants": [
-        {
-          "id": "hong-kem",
-          "name": "Hồng - Kem",
-          "swatchHex": "#E29AAE",
-          "photos": {
-            "teal": "/seed-uploads/lazy-athlete-yoga-teal.jpg"
-          }
-        }
-      ]
+      "id": "yoga-cat",
+      "name": "Mèo Yoga",
+      "png": "/seed-uploads/yoga-cat-black.png"
     }
   ],
   "orders": []
