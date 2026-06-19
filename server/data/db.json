@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 4,
+  "settings": {
+    "basePrice": 149000,
+    "xxlSurcharge": 20000,
+    "rulerPhoto": "/seed-uploads/ruler.png",
+    "rulerMockupPhoto": "/seed-uploads/mockup-ruler.png",
+    "printCalibration": {
+      "comment": "originX/Y: vi tri diem (0,0) tren thuoc (fraction 0-1 cua anh), fracPerCm: 1cm tuong ung bao nhieu fraction chieu rong anh",
+      "originX": 0.503,
+      "originY": 0.261,
+      "fracPerCm": 0.0135
+    }
+  },
+  "shirtColors": [
+    {
+      "id": "teal",
+      "name": "Xanh Ngọc",
+      "hex": "#0B5C63",
+      "photo": "/seed-uploads/shirt-teal.jpg"
+    }
+  ],
+  "inkColors": [
+    {
+      "id": "white",
+      "name": "Trắng",
+      "hex": "#FFFFFF"
+    },
+    {
+      "id": "cream",
+      "name": "Kem",
+      "hex": "#F5ECD7"
+    },
+    {
+      "id": "pink",
+      "name": "Hồng",
+      "hex": "#F4748C"
+    },
+    {
+      "id": "red",
+      "name": "Đỏ",
+      "hex": "#E03131"
+    },
+    {
+      "id": "orange",
+      "name": "Cam",
+      "hex": "#F76707"
+    },
+    {
+      "id": "yellow",
+      "name": "Vàng",
+      "hex": "#F5C800"
+    },
+    {
+      "id": "green",
+      "name": "Xanh Lá",
+      "hex": "#2F9E44"
+    },
+    {
+      "id": "teal2",
+      "name": "Xanh Ngọc",
+      "hex": "#0C8599"
+    },
+    {
+      "id": "blue",
+      "name": "Xanh Dương",
+      "hex": "#1971C2"
+    },
+    {
+      "id": "purple",
+      "name": "Tím",
+      "hex": "#7048E8"
+    },
+    {
+      "id": "black",
+      "name": "Đen",
+      "hex": "#212529"
+    }
+  ],
+  "designs": [
+    {
+      "id": "yoga-cat",
+      "name": "Mèo Yoga",
+      "layers": [
+        {
+          "id": "l1",
+          "name": "Toàn bộ hình",
+          "png": "/seed-uploads/yoga-cat-black.png",
+          "defaultInkId": "cream"
+        }
+      ],
+      "printArea": {
+        "cx": 0.579,
+        "cy": 0.404,
+        "w": 0.148
+      }
+    }
+  ],
+  "orders": [
+    {
+      "code": "XIMQKEI9FD0383",
+      "items": [
+        {
+          "designId": "yoga-cat",
+          "designName": "Mèo Yoga",
+          "printArea": {
+            "cx": 0.579,
+            "cy": 0.404,
+            "w": 0.148
+          },
+          "shirtColorId": "teal",
+          "shirtName": "Xanh Ngọc",
+          "shirtPhoto": "/seed-uploads/shirt-teal.jpg",
+          "layerColors": [
+            {
+              "layerId": "l1",
+              "layerName": "Toàn bộ hình",
+              "png": "/seed-uploads/yoga-cat-black.png",
+              "inkColorId": "pink",
+              "inkName": "Hồng",
+              "inkHex": "#F4748C"
+            }
+          ],
+          "size": "M",
+          "qty": 2,
+          "unitPrice": 149000
+        }
+      ],
+      "customer": {
+        "name": "Test",
+        "phone": "0900000000",
+        "email": "",
+        "address": "HCM"
+      },
+      "payment": "cod",
+      "total": 298000,
+      "status": "Đang xử lý",
+      "createdAt": "2026-06-19T04:00:41.017Z"
+    }
+  ]
+}

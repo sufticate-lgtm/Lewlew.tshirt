@@ -12,27 +12,24 @@ export default function Checkout() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  if (!cart.length) return (
-    <div className="xi-empty">
-      <p>Giỏ hàng trống.</p>
-      <Link to="/" className="xi-btn-secondary"><ArrowLeft size={16}/> Quay lại Studio</Link>
-    </div>
-  );
+  if (!cart.length) return <div className="xi-empty"><p>Giỏ hàng trống.</p><Link to="/" className="xi-btn-secondary"><ArrowLeft size={16}/> Studio</Link></div>;
 
   async function handleSubmit(e) {
-    e.preventDefault(); setError(null); setSubmitting(true);
+    e.preventDefault();setError(null);setSubmitting(true);
     try {
       const order = await createOrder({
-        items: cart.map(i=>({designId:i.designId,shirtColorId:i.shirtColorId,inkColorId:i.inkColorId,size:i.size,qty:i.qty})),
+        items: cart.map(i=>({
+          designId:i.designId, shirtColorId:i.shirtColorId,
+          layerColors:i.layerColors.map(lc=>({layerId:lc.layerId,inkColorId:lc.inkColorId})),
+          size:i.size, qty:i.qty,
+        })),
         customer:{name:form.name,phone:form.phone,email:form.email,address:form.address},
         payment:form.payment,
       });
       clearCart();
       navigate(`/order/${order.code}`,{state:{order,justPlaced:true}});
-    } catch(e) { setError(e.message); } finally { setSubmitting(false); }
+    } catch(e){setError(e.message);}finally{setSubmitting(false);}
   }
-
-  const F = ({l,s,children}) => <div className={`xi-field${s?" style-span":""}`} style={s?{gridColumn:"1/-1"}:{}}><label>{l}</label>{children}</div>;
 
   return (
     <div>
@@ -44,21 +41,20 @@ export default function Checkout() {
             <span className="xi-label">Thông tin nhận hàng</span>
             <div className="xi-form-grid">
               <div className="xi-field"><label>Họ và tên *</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} required/></div>
-              <div className="xi-field"><label>Số điện thoại *</label><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} required/></div>
+              <div className="xi-field"><label>Điện thoại *</label><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} required/></div>
               <div className="xi-field" style={{gridColumn:"1/-1"}}><label>Email</label><input type="email" value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))}/></div>
-              <div className="xi-field" style={{gridColumn:"1/-1"}}><label>Địa chỉ giao hàng *</label><textarea rows="2" value={form.address} onChange={e=>setForm(f=>({...f,address:e.target.value}))} required/></div>
+              <div className="xi-field" style={{gridColumn:"1/-1"}}><label>Địa chỉ *</label><textarea rows="2" value={form.address} onChange={e=>setForm(f=>({...f,address:e.target.value}))} required/></div>
             </div>
           </div>
           <div className="xi-section">
-            <span className="xi-label">Phương thức thanh toán</span>
+            <span className="xi-label">Thanh toán</span>
             <div className="xi-payment-row">
-              {[["cod","COD — Trả tiền khi nhận hàng","Shipper giao tới tay, trả tiền mặt",<Truck size={20}/>],
-                ["bank","Chuyển khoản ngân hàng","Thông tin TK gửi sau khi đặt",<Landmark size={20}/>],
-                ["momo","Ví điện tử (Momo / ZaloPay)","Link thanh toán gửi qua SMS",<Smartphone size={20}/>],
-              ].map(([val,title,sub,icon])=>(
-                <label key={val} className={`xi-payment-opt ${form.payment===val?"selected":""}`}>
-                  <input type="radio" name="pay" style={{display:"none"}} checked={form.payment===val} onChange={()=>setForm(f=>({...f,payment:val}))}/>
-                  {icon}<div><strong>{title}</strong><div className="xi-cart-item-meta">{sub}</div></div>
+              {[["cod","COD — Trả khi nhận","Shipper giao, trả tiền mặt",<Truck size={20}/>],
+                ["bank","Chuyển khoản","Thông tin TK gửi sau đặt",<Landmark size={20}/>],
+                ["momo","Momo / ZaloPay","Link gửi qua SMS",<Smartphone size={20}/>]].map(([v,t,s,i])=>(
+                <label key={v} className={`xi-payment-opt ${form.payment===v?"selected":""}`}>
+                  <input type="radio" name="pay" style={{display:"none"}} checked={form.payment===v} onChange={()=>setForm(f=>({...f,payment:v}))}/>
+                  {i}<div><strong>{t}</strong><div className="xi-cart-item-meta">{s}</div></div>
                 </label>
               ))}
             </div>
@@ -70,11 +66,8 @@ export default function Checkout() {
         <div className="xi-summary-box">
           <span className="xi-label">Đơn hàng</span>
           {cart.map(item=>(
-            <div key={item.id} className="xi-summary-row" style={{alignItems:"center"}}>
-              <span style={{display:"flex",alignItems:"center",gap:6}}>
-                <span style={{width:10,height:10,borderRadius:"50%",background:item.inkHex,border:"1px solid #ccc",flexShrink:0}}/>
-                {item.designName} ({item.shirtName}, {item.size}) x{item.qty}
-              </span>
+            <div key={item.id} className="xi-summary-row">
+              <span>{item.designName} ({item.shirtName}, {item.size}) x{item.qty}</span>
               <span>{formatVND(item.unitPrice*item.qty)}</span>
             </div>
           ))}
