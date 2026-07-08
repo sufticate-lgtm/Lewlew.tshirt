@@ -74,7 +74,9 @@ export default function ShirtCanvas({ shirtPhotoUrl, layers, printArea }) {
 
             // Vẽ lên áo — vị trí tương đối với vùng áo (sw×sh tại sx,sy)
             const dw = sw * w;
-            const dh = (off.height / off.width) * dw;
+            // Dung h tu printArea neu co (doc lap), neu khong thi tinh tu ti le anh
+            const storedH = printArea?.h;
+            const dh = storedH ? sh * storedH : (off.height / off.width) * dw;
             const dx = sx + sw * cx - dw / 2;
             const dy = sy + sh * cy - dh / 2;
             ctx.drawImage(off, dx, dy, dw, dh);
