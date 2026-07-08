@@ -58,9 +58,18 @@ function slugify(s) {
     .replace(/[\u0300-\u036f]/g,"").replace(/đ/g,"d")
     .replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"") || crypto.randomUUID();
 }
+function getAdminInfo(req) {
+  const pw = req.header("x-admin-password")||req.body?.password||"";
+  const db = readDB();
+  const admins = db.admins || [];
+  const admin = admins.find(a=>a.password===pw);
+  if (admin) return admin;
+  if (pw===ADMIN_PASSWORD) return {id:"owner",name:"Owner",role:"owner"};
+  return null;
+}
 function requireAdmin(req,res,next) {
-  if (req.header("x-admin-password") !== ADMIN_PASSWORD)
-    return res.status(401).json({error:"Sai mật khẩu quản trị."});
+  const admin = getAdminInfo(req);
+  if(!admin) return res.status(401).json({error:"Sai mật khẩu quản trị."});
   next();
 }
 function deleteFile(url) {
@@ -129,8 +138,44 @@ app.get("/api/orders/:code",(req,res)=>{
 
 /* ── ADMIN: auth + orders ───────────────────────────────── */
 app.post("/api/admin/login",(req,res)=>{
-  if((req.body||{}).password===ADMIN_PASSWORD) return res.json({ok:true});
+  const pw=(req.body||{}).password||"";
+  const db=readDB();
+  const admins=db.admins||[];
+  const admin=admins.find(a=>a.password===pw);
+  if(admin) return res.json({ok:true,name:admin.name,id:admin.id,role:admin.role||"staff"});
+  if(pw===ADMIN_PASSWORD) return res.json({ok:true,name:"Owner",id:"owner",role:"owner"});
   res.status(401).json({error:"Sai mật khẩu."});
+});
+
+function requireOwner(req,res,next) {
+  const admin = getAdminInfo(req);
+  if(!admin) return res.status(401).json({error:"Sai mật khẩu quản trị."});
+  if(admin.role && admin.role!=='owner') return res.status(403).json({error:"Chỉ Owner mới có quyền này."});
+  next();
+}
+
+/* Quan ly tai khoan admin */
+app.get("/api/admin/accounts",requireAdmin,(req,res)=>{
+  const db=readDB();
+  const admins=(db.admins||[]).map(a=>({id:a.id,name:a.name})); // khong tra password
+  res.json(admins);
+});
+app.post("/api/admin/accounts",requireOwner,(req,res)=>{
+  const db=readDB();
+  const{name,password,role}=req.body||{};
+  if(!name||!password) return res.status(400).json({error:"Cần tên và mật khẩu."});
+  if(!db.admins) db.admins=[];
+  const id="admin_"+Date.now();
+  db.admins.push({id,name,password,role:role||"staff"});
+  writeDB(db);
+  res.status(201).json({ok:true,id,name,role:role||"staff"});
+});
+app.delete("/api/admin/accounts/:id",requireOwner,(req,res)=>{
+  const db=readDB();
+  if(!db.admins) return res.status(404).json({error:"Không tìm thấy."});
+  db.admins=db.admins.filter(a=>a.id!==req.params.id);
+  writeDB(db);
+  res.json({ok:true});
 });
 app.get("/api/admin/orders",requireAdmin,(req,res)=>res.json(readDB().orders));
 app.patch("/api/admin/orders/:code",requireAdmin,(req,res)=>{
@@ -142,10 +187,10 @@ app.patch("/api/admin/orders/:code",requireAdmin,(req,res)=>{
 });
 
 /* ── ADMIN: settings ────────────────────────────────────── */
-app.patch("/api/admin/settings",requireAdmin,(req,res)=>{
+app.patch("/api/admin/settings",requireOwner,(req,res)=>{
   const db=readDB(); Object.assign(db.settings,req.body||{}); writeDB(db); res.json(db.settings);
 });
-app.post("/api/admin/settings/ruler",requireAdmin,upload.single("photo"),
+app.post("/api/admin/settings/ruler",requireOwner,upload.single("photo"),
   async(req,res)=>{
     const db=readDB(); const field=req.body?.field||"rulerPhoto";
     if(!req.file) return res.status(400).json({error:"Thiếu file."});
