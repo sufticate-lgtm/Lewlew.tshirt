@@ -267,6 +267,7 @@ app.patch("/api/admin/designs/:id",requireAdmin,(req,res)=>{
   if(req.body?.name) d.name=req.body.name;
   if(req.body?.printArea) d.printArea={...d.printArea,...req.body.printArea};
   if(req.body?.status) d.status=req.body.status;
+  if(req.body?.status) d.status=req.body.status;
   if(req.body?.printAreaBack!==undefined){
     d.printAreaBack = req.body.printAreaBack
       ? {...(d.printAreaBack||{cx:0.50,cy:0.37,w:0.32}),...req.body.printAreaBack}
