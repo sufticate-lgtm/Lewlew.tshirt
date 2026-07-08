@@ -1,0 +1,259 @@
+@import url("https://fonts.googleapis.com/css2?family=Anton&family=Work+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap");
+
+:root {
+  --paper: #f6f2e9;
+  --ink:   #181816;
+  --orange:#ff5a1f;
+  --blue:  #2c4a6e;
+  --line:  #ddd5c2;
+  --surface:#ffffff;
+  --green: #3f6b4a;
+}
+* { box-sizing: border-box; margin:0; padding:0; }
+
+body {
+  font-family:"Work Sans",system-ui,sans-serif;
+  background:var(--paper); color:var(--ink);
+}
+#root { display:flex; flex-direction:column; min-height:100vh; }
+
+/* ── HEADER ───────────────────────────────────────────── */
+.xi-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 24px; border-bottom:2px solid var(--ink);
+  position:sticky; top:0; background:var(--paper); z-index:20;
+  flex-wrap:wrap; gap:8px;
+}
+.xi-logo {
+  font-family:"Anton",sans-serif; font-size:20px; letter-spacing:.04em;
+  text-decoration:none; color:var(--ink);
+}
+.xi-logo span { color:var(--orange); }
+.xi-nav { display:flex; gap:4px; }
+.xi-nav a {
+  font-weight:600; font-size:13px; padding:7px 12px;
+  text-decoration:none; color:var(--ink); border-radius:3px; opacity:.6;
+}
+.xi-nav a.active { opacity:1; background:var(--ink); color:var(--paper); }
+.xi-cart-btn {
+  display:flex; align-items:center; gap:6px; font-weight:600; font-size:13px;
+  padding:8px 14px; border:2px solid var(--ink); background:var(--surface);
+  border-radius:3px; text-decoration:none; color:var(--ink);
+}
+.xi-badge {
+  background:var(--orange); color:#fff; font-size:10px; font-weight:700;
+  border-radius:50%; width:17px; height:17px;
+  display:flex; align-items:center; justify-content:center;
+}
+
+/* ── STUDIO: full-page split layout ──────────────────── */
+.studio-wrap {
+  display:grid;
+  grid-template-columns: 1fr 420px;
+  height: calc(100vh - 58px);   /* subtract header height */
+  overflow:hidden;
+}
+
+@media(max-width:900px) {
+  .studio-wrap {
+    grid-template-columns: 1fr;
+    height:auto;
+    overflow:visible;
+  }
+}
+
+.studio-preview {
+  position:relative;
+  background:#ECEAE3;
+  overflow:hidden;
+  display:flex; align-items:center; justify-content:center;
+}
+
+.studio-canvas-box {
+  width:100%; height:100%;
+  transition: transform .2s;
+}
+
+.studio-zoom {
+  position:absolute; bottom:16px; right:16px;
+  display:flex; align-items:center; gap:8px;
+  background:rgba(255,255,255,.85); border-radius:24px; padding:6px 12px;
+  border:1px solid var(--line); backdrop-filter:blur(4px);
+}
+.studio-zoom button {
+  background:none; border:none; cursor:pointer; display:flex; align-items:center;
+  padding:2px; border-radius:3px;
+}
+.studio-zoom button:disabled { opacity:.35; cursor:not-allowed; }
+.studio-zoom span { font-family:"JetBrains Mono"; font-size:12px; min-width:38px; text-align:center; }
+
+.studio-controls {
+  overflow-y:auto;
+  padding:24px 20px 80px;
+  border-left:2px solid var(--ink);
+  background:var(--paper);
+}
+
+/* ── MAIN for non-studio pages ────────────────────────── */
+.xi-main {
+  flex:1; padding:32px 28px 80px;
+  max-width:1100px; width:100%; margin:0 auto;
+}
+
+/* ── TYPOGRAPHY ───────────────────────────────────────── */
+.xi-eyebrow {
+  font-family:"JetBrains Mono"; font-size:11px; letter-spacing:.08em;
+  color:var(--blue); text-transform:uppercase; margin-bottom:4px;
+}
+.xi-title {
+  font-family:"Anton"; font-size:30px; text-transform:uppercase;
+  margin-bottom:8px;
+}
+.xi-subtitle { font-size:14px; color:#6b675c; max-width:560px; margin-bottom:24px; }
+.xi-mono { font-family:"JetBrains Mono"; }
+
+/* ── SECTIONS & LABELS ────────────────────────────────── */
+.xi-section { margin-bottom:18px; }
+.xi-label {
+  font-weight:700; font-size:12px; text-transform:uppercase;
+  letter-spacing:.04em; margin-bottom:8px; display:block;
+}
+
+/* ── SWATCHES ─────────────────────────────────────────── */
+.xi-swatch-row { display:flex; gap:8px; flex-wrap:wrap; }
+.xi-swatch {
+  width:34px; height:34px; border-radius:50% 50% 50% 6px;
+  cursor:pointer; transition:transform .15s; padding:0; flex-shrink:0;
+}
+.xi-swatch:hover { transform:scale(1.12); }
+.xi-swatch.selected {
+  box-shadow:0 0 0 3px var(--paper),0 0 0 5px var(--ink);
+  transform:scale(1.06);
+}
+
+/* ── DESIGN THUMBS ────────────────────────────────────── */
+.xi-design-thumb {
+  background:var(--surface); border:2px solid var(--line); border-radius:6px;
+  padding:7px; cursor:pointer; display:flex; flex-direction:column;
+  align-items:center; gap:5px; transition:border-color .15s;
+}
+.xi-design-thumb:hover { border-color:#aaa; }
+.xi-design-thumb.selected { border-color:var(--ink); }
+.xi-design-thumb span { font-size:10px; font-weight:600; text-align:center; }
+
+/* ── SIZES ────────────────────────────────────────────── */
+.xi-size-row { display:flex; gap:6px; flex-wrap:wrap; }
+.xi-size-btn {
+  width:44px; height:38px; border:2px solid var(--ink); background:var(--surface);
+  font-weight:700; font-size:13px; cursor:pointer; border-radius:3px;
+}
+.xi-size-btn.selected { background:var(--ink); color:var(--paper); }
+
+/* ── QTY ──────────────────────────────────────────────── */
+.xi-qty {
+  display:flex; align-items:center; gap:12px; border:2px solid var(--ink);
+  border-radius:3px; width:fit-content; padding:4px;
+}
+.xi-qty button {
+  width:28px; height:28px; border:none; background:var(--paper); cursor:pointer;
+  display:flex; align-items:center; justify-content:center; border-radius:2px;
+}
+.xi-qty span { font-family:"JetBrains Mono"; font-weight:600; min-width:20px; text-align:center; }
+
+/* ── STICKY BAR ───────────────────────────────────────── */
+.xi-sticky-bar {
+  display:flex; align-items:center; justify-content:space-between;
+  border-top:2px solid var(--ink); padding-top:16px; margin-top:8px;
+  flex-wrap:wrap; gap:12px;
+}
+.xi-price { font-family:"Anton"; font-size:24px; }
+
+/* ── BUTTONS ──────────────────────────────────────────── */
+.xi-btn-primary {
+  display:flex; align-items:center; gap:8px; background:var(--orange);
+  color:#fff; font-weight:700; font-size:14px; padding:12px 22px;
+  border:none; border-radius:3px; cursor:pointer; font-family:"Work Sans";
+}
+.xi-btn-primary:hover { filter:brightness(1.07); }
+.xi-btn-primary:disabled { opacity:.45; cursor:not-allowed; }
+.xi-btn-secondary {
+  display:flex; align-items:center; gap:8px; background:transparent;
+  color:var(--ink); font-weight:600; font-size:13px; padding:10px 18px;
+  border:2px solid var(--ink); border-radius:3px; cursor:pointer;
+  text-decoration:none; font-family:"Work Sans";
+}
+
+/* ── CART ─────────────────────────────────────────────── */
+.xi-cart-list { display:flex; flex-direction:column; gap:14px; }
+.xi-cart-item {
+  display:flex; gap:14px; background:var(--surface); border:2px solid var(--line);
+  border-radius:6px; padding:12px; align-items:center; flex-wrap:wrap;
+}
+.xi-cart-item-info { flex:1; min-width:160px; }
+.xi-cart-item-title { font-weight:700; margin-bottom:3px; }
+.xi-cart-item-meta { font-family:"JetBrains Mono"; font-size:11px; color:#6b675c; }
+.xi-cart-item-actions { display:flex; align-items:center; gap:12px; }
+.xi-remove-btn { background:none; border:none; cursor:pointer; color:#a8453a; display:flex; align-items:center; gap:4px; }
+
+/* ── SUMMARY ──────────────────────────────────────────── */
+.xi-summary-box { background:var(--surface); border:2px solid var(--ink); border-radius:6px; padding:18px; }
+.xi-summary-row { display:flex; justify-content:space-between; font-size:14px; padding:5px 0; gap:8px; }
+.xi-summary-row.total { font-weight:700; font-size:17px; border-top:2px solid var(--line); margin-top:8px; padding-top:10px; }
+
+/* ── FORM ─────────────────────────────────────────────── */
+.xi-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+@media(max-width:600px){ .xi-form-grid{ grid-template-columns:1fr; } }
+.xi-field { display:flex; flex-direction:column; gap:5px; }
+.xi-field label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; }
+.xi-field input,.xi-field textarea,.xi-field select {
+  border:2px solid var(--ink); border-radius:3px; padding:9px 11px;
+  font-family:"Work Sans"; font-size:14px; background:var(--surface);
+}
+.xi-field input:focus,.xi-field textarea:focus { outline:3px solid var(--blue); outline-offset:1px; }
+
+/* ── PAYMENT ──────────────────────────────────────────── */
+.xi-payment-row { display:flex; flex-direction:column; gap:8px; }
+.xi-payment-opt { display:flex; align-items:center; gap:10px; border:2px solid var(--line); border-radius:6px; padding:12px; cursor:pointer; }
+.xi-payment-opt.selected { border-color:var(--ink); background:#fff; }
+
+/* ── CONFIRM / ORDER ──────────────────────────────────── */
+.xi-confirm { text-align:center; padding:50px 20px; }
+.xi-confirm-icon { width:60px; height:60px; border-radius:50%; background:var(--green); color:#fff; display:flex; align-items:center; justify-content:center; margin:0 auto 18px; }
+.xi-order-code { font-family:"JetBrains Mono"; font-size:18px; font-weight:600; background:var(--ink); color:var(--paper); display:inline-block; padding:7px 14px; border-radius:3px; margin:12px 0; }
+.xi-orders-list { display:flex; flex-direction:column; gap:12px; }
+.xi-order-card { background:var(--surface); border:2px solid var(--line); border-radius:6px; padding:14px; }
+.xi-order-head { display:flex; justify-content:space-between; align-items:center; cursor:pointer; flex-wrap:wrap; gap:8px; }
+.xi-status-pill { font-size:10px; font-weight:700; background:#fcefd9; color:#9c5b0e; padding:3px 9px; border-radius:20px; text-transform:uppercase; }
+
+/* ── STATES ───────────────────────────────────────────── */
+.xi-empty { text-align:center; padding:60px 20px; color:#6b675c; }
+.xi-error { background:#fbe4e1; border:2px solid #a8453a; color:#7a2e25; padding:12px 16px; border-radius:6px; font-size:14px; margin-bottom:14px; }
+.xi-loading { display:flex; align-items:center; justify-content:center; gap:10px; padding:80px 0; color:#6b675c; }
+.xi-toast { position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:var(--ink); color:var(--paper); padding:11px 20px; border-radius:30px; font-weight:600; font-size:13px; z-index:50; white-space:nowrap; }
+.xi-spin { animation:xi-spin 1s linear infinite; }
+@keyframes xi-spin { to{ transform:rotate(360deg); } }
+
+/* ── FOOTER ───────────────────────────────────────────── */
+.xi-footer {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:14px 24px; border-top:1px solid var(--line);
+  font-size:11px; color:#8a8576; flex-wrap:wrap; gap:6px;
+}
+
+/* ── ADMIN ────────────────────────────────────────────── */
+.xi-admin-login { max-width:360px; margin:60px auto; text-align:center; }
+.xi-tabs { display:flex; gap:4px; border-bottom:2px solid var(--ink); margin-bottom:22px; flex-wrap:wrap; }
+.xi-tabs button { font-weight:700; font-size:13px; padding:9px 14px; border:none; background:transparent; cursor:pointer; opacity:.55; border-bottom:3px solid transparent; font-family:"Work Sans"; }
+.xi-tabs button.active { opacity:1; border-bottom-color:var(--orange); }
+.xi-admin-list { display:flex; flex-direction:column; gap:9px; margin-bottom:22px; }
+.xi-admin-row { display:flex; align-items:center; gap:12px; background:var(--surface); border:2px solid var(--line); border-radius:6px; padding:9px 12px; }
+.xi-admin-row .grow { flex:1; }
+.xi-swatch-sm { width:24px; height:24px; border-radius:50% 50% 50% 6px; border:2px solid var(--ink); flex-shrink:0; }
+
+/* ── STUDIO GRID (non-studio pages fallback) ──────────── */
+.xi-studio-grid { display:grid; grid-template-columns:1.1fr 1fr; gap:36px; align-items:start; }
+@media(max-width:760px){ .xi-studio-grid{ grid-template-columns:1fr; } }
+.xi-preview-card {
+  background:#ECEAE3; border:2px solid var(--ink); border-radius:6px;
+  display:flex; align-items:center; justify-content:center; min-height:340px; overflow:hidden;
+}
