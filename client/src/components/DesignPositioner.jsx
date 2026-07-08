@@ -56,7 +56,7 @@ export default function DesignPositioner({
   useEffect(() => {
     const png = designLayers?.find(l => {
       const s = l.side||front;
-      return side===front ? (s===front||s===both) : (s===back||s===both);
+      return side==='front' ? (s==='front'||s==='both') : (s==='back'||s==='both');
     })?.png;
     if (!png) return;
     const img = new Image();
@@ -65,10 +65,10 @@ export default function DesignPositioner({
         const r = img.naturalHeight / img.naturalWidth;
         setRatio(r);
         // Nếu h chưa được set (bằng w = vuông), tự động cập nhật
-        const pa = side===front ? printArea : printAreaBack;
+        const pa = side==='front' ? printArea : printAreaBack;
         if (pa && (!pa.h || Math.abs(pa.h - pa.w) < 0.001)) {
           const correctedH = pa.w * r;
-          if (side===front) onChangeFront({...pa, h: correctedH});
+          if (side==='front') onChangeFront({...pa, h: correctedH});
           else if (onChangeBack) onChangeBack({...pa, h: correctedH});
         }
       }
