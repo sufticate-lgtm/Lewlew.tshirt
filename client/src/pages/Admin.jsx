@@ -9,6 +9,7 @@ import {
   adminAddLayer,   adminPatchLayer,    adminDeleteLayer,  adminReorderLayers,
   adminPatchLayerFull, adminPatchShirtColorFull, adminPatchInkColor,
   adminSetPrintAreaBack,
+  adminGetAccounts, adminAddAccount, adminDeleteAccount,
   adminExtractPsd, adminCreateDesignFromPsd,
   getSettings,
 } from "../api";
@@ -29,7 +30,12 @@ export default function Admin() {
 
   useEffect(()=>{
     if(!password){setChecking(false);return;}
-    adminLogin(password).then(()=>setLoggedIn(true))
+    adminLogin(password)
+      .then(info=>{
+        localStorage.setItem('ll_admin_role', info.role||'staff');
+        localStorage.setItem('ll_admin_name', info.name||'');
+        setLoggedIn(true);
+      })
       .catch(()=>{localStorage.removeItem(PW_KEY);setPassword("");})
       .finally(()=>setChecking(false));
   },[password]);
@@ -37,8 +43,10 @@ export default function Admin() {
   async function handleLogin(e){
     e.preventDefault();setLoginError(null);
     try{
-      await adminLogin(loginInput);
+      const info = await adminLogin(loginInput);
       localStorage.setItem(PW_KEY,loginInput);
+      localStorage.setItem('ll_admin_role', info.role||'staff');
+      localStorage.setItem('ll_admin_name', info.name||'');
       setPassword(loginInput);setLoggedIn(true);
     }catch(e){setLoginError(e.message);}
   }
@@ -55,20 +63,33 @@ export default function Admin() {
       </form>
     </div>
   );
-  return <Dashboard password={password} onLogout={()=>{localStorage.removeItem(PW_KEY);setPassword("");setLoggedIn(false);}}/>;
+  const role = localStorage.getItem('ll_admin_role')||'staff';
+  const adminName = localStorage.getItem('ll_admin_name')||'';
+  return <Dashboard password={password} role={role} adminName={adminName}
+    onLogout={()=>{localStorage.removeItem(PW_KEY);localStorage.removeItem('ll_admin_role');localStorage.removeItem('ll_admin_name');setPassword("");setLoggedIn(false);}}/>;
 }
 
-function Dashboard({password,onLogout}){
+function Dashboard({password,role,adminName,onLogout}){
   const [tab,setTab]=useState("orders");
+  const isOwner = role==="owner";
+  // Nhan vien khong thay tab Cai dat va Tai khoan
+  const tabs = [["orders","Đơn hàng"],["shirts","Màu áo"],["inks","Màu mực"],["designs","Hình in"],
+    ...(isOwner?[["settings","Cài đặt"],["accounts","Tài khoản"]]:[])];
   return(
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:10}}>
-        <h1 className="xi-title" style={{marginBottom:0}}>Trang Quản Trị</h1>
+        <div>
+          <h1 className="xi-title" style={{marginBottom:0}}>Trang Quản Trị</h1>
+          {adminName&&<div style={{fontSize:12,color:"#8a8576",marginTop:2}}>
+            Xin chào, <strong>{adminName}</strong>
+            {isOwner&&<span style={{marginLeft:6,background:"var(--orange)",color:"#fff",
+              fontSize:10,padding:"1px 6px",borderRadius:10,fontWeight:700}}>OWNER</span>}
+          </div>}
+        </div>
         <button className="xi-btn-secondary" onClick={onLogout}><LogOut size={16}/> Đăng xuất</button>
       </div>
       <div className="xi-tabs">
-        {[["orders","Đơn hàng"],["shirts","Màu áo"],["inks","Màu mực"],
-          ["designs","Hình in"],["settings","Cài đặt"]].map(([id,label])=>(
+        {tabs.map(([id,label])=>(
           <button key={id} className={tab===id?"active":""} onClick={()=>setTab(id)}>{label}</button>
         ))}
       </div>
@@ -77,6 +98,7 @@ function Dashboard({password,onLogout}){
       {tab==="inks"     && <InksTab     password={password}/>}
       {tab==="designs"  && <DesignsTab  password={password}/>}
       {tab==="settings" && <SettingsTab password={password}/>}
+      {tab==="accounts" && <AccountsTab password={password}/>}
     </div>
   );
 }
@@ -728,6 +750,105 @@ function SettingsTab({password}){
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── Tài khoản nhân viên ───────────────────────────────── */
+function AccountsTab({password}){
+  const [list,    setList]    = useState(null);
+  const [name,    setName]    = useState("");
+  const [pw,      setPw]      = useState("");
+  const [showPw,  setShowPw]  = useState(false);
+  const [role2,   setRole2]   = useState("staff");
+  const [busy,    setBusy]    = useState(false);
+  const [error,   setError]   = useState(null);
+
+  function load(){
+    adminGetAccounts(password).then(setList).catch(e=>setError(e.message));
+  }
+  useEffect(load,[password]);
+
+  async function handleAdd(e){
+    e.preventDefault(); setError(null); setBusy(true);
+    try{
+      await adminAddAccount(password,name,pw,role2);
+      setName(""); setPw(""); load();
+    }catch(e){setError(e.message);}
+    finally{setBusy(false);}
+  }
+
+  if(!list) return <div className="xi-loading"><Loader2 size={20} className="xi-spin"/></div>;
+
+  return(
+    <div>
+      <p className="xi-subtitle">
+        Mỗi tài khoản có mật khẩu riêng — có thể thêm/xóa mà không ảnh hưởng tài khoản khác.
+        Tất cả tài khoản có cùng quyền quản trị.
+      </p>
+      {error&&<div className="xi-error">{error}</div>}
+
+      {/* Danh sách */}
+      <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:24}}>
+        {list.map(a=>(
+          <div key={a.id} style={{display:"flex",alignItems:"center",gap:12,
+            background:"#fff",border:"2px solid var(--line)",borderRadius:8,padding:"12px 16px"}}>
+            <div style={{width:36,height:36,borderRadius:"50%",background:"var(--ink)",
+              color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",
+              fontWeight:700,fontSize:16,flexShrink:0}}>
+              {a.name[0].toUpperCase()}
+            </div>
+            <div style={{flex:1}}>
+              <span style={{fontWeight:600}}>{a.name}</span>
+              <span style={{marginLeft:8,fontSize:11,
+                background:a.role==="owner"?"var(--orange)":"var(--line)",
+                color:a.role==="owner"?"#fff":"#555",
+                padding:"1px 6px",borderRadius:10,fontWeight:600}}>
+                {a.role==="owner"?"OWNER":"Nhân viên"}
+              </span>
+            </div>
+            <button onClick={async()=>{
+              if(!confirm(`Xóa tài khoản "${a.name}"?`))return;
+              try{await adminDeleteAccount(password,a.id);load();}catch(e){setError(e.message);}
+            }} className="xi-remove-btn"><Trash2 size={16}/></button>
+          </div>
+        ))}
+      </div>
+
+      {/* Thêm tài khoản */}
+      <div style={{background:"#f8f5ef",borderRadius:8,padding:20,maxWidth:480}}>
+        <strong style={{fontSize:14,display:"block",marginBottom:14}}>+ Thêm tài khoản mới</strong>
+        <form onSubmit={handleAdd}>
+          <div className="xi-field" style={{marginBottom:12}}>
+            <label>Tên nhân viên *</label>
+            <input value={name} onChange={e=>setName(e.target.value)}
+              placeholder="VD: Lan, Minh..." required/>
+          </div>
+          <div className="xi-field" style={{marginBottom:12}}>
+            <label>Mật khẩu *</label>
+            <div style={{display:"flex",gap:8}}>
+              <input type={showPw?"text":"password"} value={pw}
+                onChange={e=>setPw(e.target.value)}
+                placeholder="Tối thiểu 8 ký tự" required minLength={8} style={{flex:1}}/>
+              <button type="button" onClick={()=>setShowPw(s=>!s)}
+                style={{background:"var(--line)",border:"none",borderRadius:3,
+                  padding:"0 12px",cursor:"pointer",fontSize:12}}>
+                {showPw?"Ẩn":"Hiện"}
+              </button>
+            </div>
+          </div>
+          <div className="xi-field" style={{marginBottom:16}}>
+            <label>Phân quyền</label>
+            <select value={role2} onChange={e=>setRole2(e.target.value)}>
+              <option value="staff">Nhân viên — thêm/sửa màu áo, hình in, xem đơn hàng</option>
+              <option value="owner">Owner — toàn quyền</option>
+            </select>
+          </div>
+          <button type="submit" className="xi-btn-primary" disabled={busy}>
+            {busy&&<Loader2 size={16} className="xi-spin"/>} Tạo tài khoản
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
