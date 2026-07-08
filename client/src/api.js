@@ -106,3 +106,7 @@ export const adminPatchLayerFull = (pw,designId,lid,name,defaultInkId,pngFile) =
 
 export const adminSetPrintAreaBack = (pw,id,printAreaBack) =>
   request(`/admin/designs/${encodeURIComponent(id)}`,j('PATCH',{printAreaBack},pw));
+
+export const adminGetAccounts    = pw => request('/admin/accounts', {headers:{'x-admin-password':pw}});
+export const adminAddAccount     = (pw,name,password,role='staff') => request('/admin/accounts',j('POST',{name,password,role},pw));
+export const adminDeleteAccount  = (pw,id) => request(`/admin/accounts/${encodeURIComponent(id)}`,{method:'DELETE',headers:{'x-admin-password':pw}});
