@@ -52,14 +52,29 @@ export default function DesignPositioner({
     setHInput(((currentPA.h || curW * ratio) / fpc).toFixed(1));
   }, [side, currentPA.w, currentPA.h, ratio, fpc]);
 
-  // Đọc tỉ lệ PNG để dùng làm default khi resize bằng kéo
+  // Đọc tỉ lệ PNG — tự động cập nhật h nếu chưa được set đúng
   useEffect(() => {
-    const png = designLayers?.find(l=>l.png)?.png;
+    const png = designLayers?.find(l => {
+      const s = l.side||front;
+      return side===front ? (s===front||s===both) : (s===back||s===both);
+    })?.png;
     if (!png) return;
     const img = new Image();
-    img.onload = () => { if (img.naturalWidth > 0) setRatio(img.naturalHeight / img.naturalWidth); };
+    img.onload = () => {
+      if (img.naturalWidth > 0) {
+        const r = img.naturalHeight / img.naturalWidth;
+        setRatio(r);
+        // Nếu h chưa được set (bằng w = vuông), tự động cập nhật
+        const pa = side===front ? printArea : printAreaBack;
+        if (pa && (!pa.h || Math.abs(pa.h - pa.w) < 0.001)) {
+          const correctedH = pa.w * r;
+          if (side===front) onChangeFront({...pa, h: correctedH});
+          else if (onChangeBack) onChangeBack({...pa, h: correctedH});
+        }
+      }
+    };
     img.src = png;
-  }, [designLayers]);
+  }, [designLayers, side]);
 
   // Apply từ input
   function applyW(val) {
