@@ -51,6 +51,8 @@ export const adminDeleteInkColor = (pw,id)   =>
   request(`/admin/ink-colors/${encodeURIComponent(id)}`,{method:"DELETE",...auth(pw)});
 
 export const adminAddDesign    = (pw,name) => request("/admin/designs",j("POST",{name},pw));
+export const adminPatchDesignStatus = (pw,id,status) =>
+  request(`/admin/designs/${encodeURIComponent(id)}`,j('PATCH',{status},pw));
 export const adminPatchDesign  = (pw,id,data) =>
   request(`/admin/designs/${encodeURIComponent(id)}`,j("PATCH",data,pw));
 export const adminDeleteDesign = (pw,id) =>
