@@ -81,7 +81,7 @@ function urlFromPath(p) { return "/uploads/" + path.basename(p); }
 /* ── PUBLIC: catalog ────────────────────────────────────── */
 app.get("/api/shirt-colors", (_,res) => res.json(readDB().shirtColors));
 app.get("/api/ink-colors",   (_,res) => res.json(readDB().inkColors));
-app.get("/api/designs",      (_,res) => res.json(readDB().designs));
+app.get("/api/designs",      (_,res) => res.json(readDB().designs.filter(d=>d.status==='public')));
 app.get("/api/settings",     (_,res) => res.json(readDB().settings));
 
 /* ── PUBLIC: orders ─────────────────────────────────────── */
@@ -266,6 +266,7 @@ app.patch("/api/admin/designs/:id",requireAdmin,(req,res)=>{
   if(!d) return res.status(404).json({error:"Không tìm thấy mẫu."});
   if(req.body?.name) d.name=req.body.name;
   if(req.body?.printArea) d.printArea={...d.printArea,...req.body.printArea};
+  if(req.body?.status) d.status=req.body.status;
   if(req.body?.printAreaBack!==undefined){
     d.printAreaBack = req.body.printAreaBack
       ? {...(d.printAreaBack||{cx:0.50,cy:0.37,w:0.32}),...req.body.printAreaBack}
