@@ -1,28 +1,27 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Render sắc nét trên màn hình thường + Retina:
- *  - Canvas nội bộ: size × devicePixelRatio (thường = 2x → 1600px)
- *  - CSS hiển thị: 100% chiều rộng container → sắc nét ở mọi kích thước
+ * Render sắc nét trên màn hình thường + Retina.
+ * Hình in luôn giữ đúng tỉ lệ PNG gốc — không bao giờ bóp méo.
  */
 export default function ShirtCanvas({ shirtPhotoUrl, layers, printArea }) {
-  const canvasRef   = useRef(null);
+  const canvasRef    = useRef(null);
   const containerRef = useRef(null);
   const [status, setStatus] = useState("idle");
 
   useEffect(() => {
-    const canvas = canvasRef.current;
+    const canvas    = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container || !shirtPhotoUrl) return;
 
-    const dpr      = window.devicePixelRatio || 1;
-    const cw       = container.clientWidth  || 800;
-    const ch       = container.clientHeight || 800;
-    const W        = cw  * dpr;
-    const H        = ch  * dpr;
+    const dpr = window.devicePixelRatio || 1;
+    const cw  = container.clientWidth  || 800;
+    const ch  = container.clientHeight || 800;
+    const W   = cw * dpr;
+    const H   = ch * dpr;
 
-    canvas.width  = W;
-    canvas.height = H;
+    canvas.width        = W;
+    canvas.height       = H;
     canvas.style.width  = cw + "px";
     canvas.style.height = ch + "px";
 
@@ -35,7 +34,7 @@ export default function ShirtCanvas({ shirtPhotoUrl, layers, printArea }) {
     shirtImg.crossOrigin = "anonymous";
     shirtImg.onload = async () => {
       ctx.clearRect(0, 0, W, H);
-      // Fit shirt vào toàn bộ canvas (object-fit: contain)
+      // Fit shirt vào canvas (object-fit: contain)
       const scale = Math.min(W / shirtImg.naturalWidth, H / shirtImg.naturalHeight);
       const sw    = shirtImg.naturalWidth  * scale;
       const sh    = shirtImg.naturalHeight * scale;
@@ -54,7 +53,7 @@ export default function ShirtCanvas({ shirtPhotoUrl, layers, printArea }) {
           img.crossOrigin = "anonymous";
           img.onload = () => {
             // Tô màu
-            const off = document.createElement("canvas");
+            const off  = document.createElement("canvas");
             off.width  = img.naturalWidth  || img.width;
             off.height = img.naturalHeight || img.height;
             const octx = off.getContext("2d");
@@ -72,11 +71,9 @@ export default function ShirtCanvas({ shirtPhotoUrl, layers, printArea }) {
             }
             octx.putImageData(id, 0, 0);
 
-            // Vẽ lên áo — vị trí tương đối với vùng áo (sw×sh tại sx,sy)
+            // Vị trí — dùng tỉ lệ PNG thực tế (không bóp méo)
             const dw = sw * w;
-            // Dung h tu printArea neu co (doc lap), neu khong thi tinh tu ti le anh
-            const storedH = printArea?.h;
-            const dh = storedH ? sh * storedH : (off.height / off.width) * dw;
+            const dh = (off.height / off.width) * dw;
             const dx = sx + sw * cx - dw / 2;
             const dy = sy + sh * cy - dh / 2;
             ctx.drawImage(off, dx, dy, dw, dh);
@@ -95,8 +92,7 @@ export default function ShirtCanvas({ shirtPhotoUrl, layers, printArea }) {
   return (
     <div ref={containerRef} style={{ width:"100%", height:"100%", position:"relative" }}>
       <canvas ref={canvasRef}
-        style={{ display:"block", width:"100%", height:"100%",
-          objectFit:"contain", imageRendering:"high-quality" }} />
+        style={{ display:"block", width:"100%", height:"100%", objectFit:"contain" }} />
       {status === "loading" && (
         <div style={{ position:"absolute", inset:0, display:"flex",
           alignItems:"center", justifyContent:"center",
