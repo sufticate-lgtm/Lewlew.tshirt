@@ -37,8 +37,11 @@ export default function DesignPositioner({
   const [wInput, setWInput] = useState((currentPA.w / fpc).toFixed(1));
   const [hInput, setHInput] = useState((currentPA.w * ratio / fpc).toFixed(1));
 
-  useEffect(() => { setWInput((currentPA.w / fpc).toFixed(1)); }, [currentPA.w, fpc, side]);
-  useEffect(() => { setHInput((currentPA.w * ratio / fpc).toFixed(1)); }, [currentPA.w, ratio, fpc, side]);
+  // Reset input khi doi side HOAC khi printArea/printAreaBack thay doi
+  useEffect(() => {
+    setWInput((currentPA.w / fpc).toFixed(1));
+    setHInput((currentPA.w * ratio / fpc).toFixed(1));
+  }, [side, currentPA.w, ratio, fpc]);
 
   // Đọc tỉ lệ PNG
   useEffect(() => {
@@ -210,7 +213,12 @@ export default function DesignPositioner({
           {side==="back" && !printAreaBack && hasBack && (
             <div style={{position:"absolute",inset:0,display:"flex",
               alignItems:"center",justifyContent:"center"}}>
-              <button onClick={()=>onChangeBack({cx:0.50,cy:0.37,w:0.32})}
+              <button onClick={()=>onChangeBack({
+                  // Copy printArea mat truoc lam gia tri ban dau cho mat sau
+                  cx: printArea.cx,
+                  cy: printArea.cy,
+                  w:  printArea.w,
+                })}
                 style={{background:"var(--orange)",color:"#fff",border:"none",
                   borderRadius:6,padding:"10px 20px",fontWeight:700,
                   fontSize:14,cursor:"pointer"}}>
