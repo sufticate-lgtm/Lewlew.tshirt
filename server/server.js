@@ -245,6 +245,25 @@ app.post("/api/admin/designs/:id/layers",requireAdmin,upload.single("png"),
     const fp=await ensurePng(req.file.path);
     const side=(req.body?.side)||"front";
     d.layers.push({id:"l"+Date.now(),name,png:urlFromPath(fp),defaultInkId:defaultInkId||"black",side});
+
+    // Tu dong cap nhat ti le printArea/printAreaBack theo kich thuoc PNG dau tien
+    try {
+      const meta = await sharp(fp).metadata();
+      if(meta.width && meta.height) {
+        const imgRatio = meta.height / meta.width;
+        // Chi cap nhat neu day la layer dau tien cua design
+        if(d.layers.length === 1) {
+          const pa = side==='back' ? (d.printAreaBack||{cx:0.50,cy:0.37,w:0.32}) : d.printArea;
+          const newH = pa.w * imgRatio;
+          if(side==='back') {
+            d.printAreaBack = {...pa, h: newH};
+          } else {
+            d.printArea = {...d.printArea, h: newH};
+          }
+        }
+      }
+    } catch(e) { /* khong update ratio neu loi */ }
+
     writeDB(db); res.status(201).json(db.designs);
   }
 );
