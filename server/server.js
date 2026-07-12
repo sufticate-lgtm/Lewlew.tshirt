@@ -1,5 +1,3 @@
-// server.js — v4 — 2026-07-09
-// Changelog: admin/designs endpoint trả tất cả, public filter status, design status patch
 require("dotenv").config();
 const express  = require("express");
 const cors     = require("cors");
@@ -268,6 +266,8 @@ app.patch("/api/admin/designs/:id",requireAdmin,(req,res)=>{
   if(!d) return res.status(404).json({error:"Không tìm thấy mẫu."});
   if(req.body?.name) d.name=req.body.name;
   if(req.body?.printArea) d.printArea={...d.printArea,...req.body.printArea};
+  if(req.body?.printZones) d.printZones=req.body.printZones;
+  if(req.body?.status) d.status=req.body.status;
   if(req.body?.status) d.status=req.body.status;
   if(req.body?.printAreaBack!==undefined){
     d.printAreaBack = req.body.printAreaBack
@@ -293,25 +293,25 @@ app.post("/api/admin/designs/:id/layers",requireAdmin,upload.single("png"),
     const fp=await ensurePng(req.file.path);
     const side=(req.body?.side)||"front";
     d.layers.push({id:"l"+Date.now(),name,png:urlFromPath(fp),defaultInkId:defaultInkId||"black",side,zoneId:zoneId||null});
-
-    // Auto-save printZones nếu client gửi kèm (tránh mất vị trí khi upload)
-    if(pendingZones){
-      try{ d.printZones=JSON.parse(pendingZones); }catch(e){}
-    }
+    if(pendingZones){try{d.printZones=JSON.parse(pendingZones);}catch(e){}}
 
     // Tu dong cap nhat ti le printArea/printAreaBack theo kich thuoc PNG dau tien
     try {
       const meta = await sharp(fp).metadata();
       if(meta.width && meta.height) {
         const imgRatio = meta.height / meta.width;
+        // Chi cap nhat neu day la layer dau tien cua design
         if(d.layers.length === 1) {
           const pa = side==='back' ? (d.printAreaBack||{cx:0.50,cy:0.37,w:0.32}) : d.printArea;
           const newH = pa.w * imgRatio;
-          if(side==='back') { d.printAreaBack = {...pa, h: newH}; }
-          else { d.printArea = {...d.printArea, h: newH}; }
+          if(side==='back') {
+            d.printAreaBack = {...pa, h: newH};
+          } else {
+            d.printArea = {...d.printArea, h: newH};
+          }
         }
       }
-    } catch(e) {}
+    } catch(e) { /* khong update ratio neu loi */ }
 
     writeDB(db); res.status(201).json(db.designs);
   }
@@ -331,7 +331,7 @@ app.patch("/api/admin/designs/:id/layers/:lid",requireAdmin,
     if(req.body?.name) l.name=req.body.name;
     if(req.body?.defaultInkId) l.defaultInkId=req.body.defaultInkId;
     if(req.body?.side) l.side=req.body.side;
-    if(req.body?.zoneId !== undefined) l.zoneId=req.body.zoneId;
+    if(req.body?.zoneId) l.zoneId=req.body.zoneId;
     if(req.file){ 
       if(l.png&&l.png.startsWith('/uploads/'))deleteFile(l.png);
       const fp=await ensurePng(req.file.path); l.png=urlFromPath(fp);
