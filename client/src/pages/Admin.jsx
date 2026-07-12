@@ -512,7 +512,8 @@ function DesignCard({design,inkColors,settings,password,onChange,setError,expand
   const [printArea,     setPrintArea]     = useState(design.printArea);
   const [printAreaBack, setPrintAreaBack] = useState(design.printAreaBack||null);
   const [savingPos,     setSavingPos]     = useState(false);
-  const [newLayer,   setNewLayer]   = useState({name:"",defaultInkId:"",files:[],side:"front"});
+  const [pendingZones,  setPendingZones]  = useState(null);
+  const [newLayer,   setNewLayer]   = useState({name:"",defaultInkId:"",files:[],side:"front",zoneId:""});
   const [busy,       setBusy]       = useState(false);
 
   const rulerPhotoUrl = settings?.rulerMockupPhoto||settings?.rulerPhoto||"/seed-uploads/mockup-ruler.png";
@@ -522,8 +523,7 @@ function DesignCard({design,inkColors,settings,password,onChange,setError,expand
   async function savePosition(){
     setSavingPos(true);
     try{
-      await adminPatchDesign(password,design.id,{printArea});
-      await adminSetPrintAreaBack(password,design.id,printAreaBack);
+      if(pendingZones) await adminPatchDesign(password,design.id,{printZones:pendingZones});
       onChange();
     }catch(e){setError(e.message);}finally{setSavingPos(false);}
   }
@@ -532,17 +532,21 @@ function DesignCard({design,inkColors,settings,password,onChange,setError,expand
     const files = newLayer.files||[];
     if(!files.length) return setError("Cần chọn ít nhất 1 file PNG.");
     setBusy(true);
+    // Xác định zone: dùng zone đang chọn, nếu chưa có thì lấy zone đầu tiên của mặt hiện tại
+    const zones = pendingZones || design.printZones || [];
+    const sideZones = zones.filter(z=>z.side===(newLayer.side||"front"));
+    const resolvedZoneId = newLayer.zoneId || sideZones[0]?.id || (newLayer.side==="back"?"back-main":"front-main");
     try{
       for(let i=0;i<files.length;i++){
         const file = files[i];
-        // Ten layer: dung ten file neu co nhieu file, dung ten nhap neu 1 file
         const layerName = files.length===1 && newLayer.name
           ? newLayer.name
           : file.name.replace(/\.(png|tif|tiff)$/i,"").replace(/[_-]/g," ").trim() || `Layer ${i+1}`;
         const inkId = newLayer.defaultInkId || inkColors[i%inkColors.length]?.id || inkColors[0]?.id;
-        await adminAddLayer(password,design.id,layerName,inkId,file,newLayer.side||"front");
+        // Gửi pendingZones kèm theo để server auto-save vị trí (tránh mất data)
+        await adminAddLayer(password,design.id,layerName,inkId,file,newLayer.side||"front",resolvedZoneId,pendingZones);
       }
-      setNewLayer({name:"",defaultInkId:"",files:[],side:"front"});onChange();
+      setNewLayer({name:"",defaultInkId:"",files:[],side:"front",zoneId:""});onChange();
     }catch(e){setError(e.message);}finally{setBusy(false);}
   }
 
@@ -581,7 +585,7 @@ function DesignCard({design,inkColors,settings,password,onChange,setError,expand
               designLayers={design.layers}
               design={design}
               calibration={calibration}
-              onChangeZones={zones=>adminPatchDesign(password,design.id,{printZones:zones}).then(onChange)}/>
+              onChangeZones={zones=>setPendingZones(zones)}/>
           </div>
 
           {/* Layers */}
@@ -612,11 +616,11 @@ function DesignCard({design,inkColors,settings,password,onChange,setError,expand
                     onChange={async e=>{try{await adminPatchLayer(password,design.id,l.id,{defaultInkId:e.target.value});onChange();}catch(e2){setError(e2.message);}}}>
                     {inkColors.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
-                  <select value={l.side||"front"}
+                  <select
                     style={{fontSize:10,width:"100%",marginBottom:6,fontWeight:700,
                       border:"1px solid var(--line)",borderRadius:3,padding:"2px 4px",
-                      background:l.side==="back"?"#dbeafe":l.side==="both"?"#fef9c3":"#dcfce7",
-                      color:l.side==="back"?"#1d4ed8":l.side==="both"?"#92400e":"#166534"}}
+                      background:l.side==="back"?"#dbeafe":"#dcfce7",
+                      color:l.side==="back"?"#1d4ed8":"#166534"}}
                     value={l.zoneId||(l.side==="back"?"back-main":"front-main")}
                     onChange={async e=>{
                       try{await adminPatchLayer(password,design.id,l.id,{zoneId:e.target.value});onChange();}
@@ -669,6 +673,28 @@ function DesignCard({design,inkColors,settings,password,onChange,setError,expand
                     onChange={e=>setNewLayer(l=>({...l,name:e.target.value}))}
                     placeholder={newLayer.files?.length>1?"Tự động theo tên file":"VD: Thân chính"}
                     required={!newLayer.files||newLayer.files.length<=1}/>
+                </div>
+                <div className="xi-field">
+                  <label>Mặt</label>
+                  <select value={newLayer.side||"front"}
+                    style={{fontWeight:700}}
+                    onChange={e=>setNewLayer(l=>({...l,side:e.target.value,zoneId:""}))}>
+                    <option value="front">Mặt trước</option>
+                    <option value="back">Mặt sau</option>
+                  </select>
+                </div>
+                <div className="xi-field">
+                  <label>Vùng in</label>
+                  <select value={newLayer.zoneId}
+                    onChange={e=>setNewLayer(l=>({...l,zoneId:e.target.value}))}>
+                    {(()=>{
+                      const zones = pendingZones || design.printZones || [];
+                      const sideZones = zones.filter(z=>z.side===(newLayer.side||"front"));
+                      const opts = sideZones.length>0 ? sideZones
+                        : [{id:newLayer.side==="back"?"back-main":"front-main", name:newLayer.side==="back"?"Mặt sau":"Mặt trước"}];
+                      return opts.map(z=><option key={z.id} value={z.id}>{z.name}</option>);
+                    })()}
+                  </select>
                 </div>
                 <div className="xi-field">
                   <label>Màu mặc định</label>
