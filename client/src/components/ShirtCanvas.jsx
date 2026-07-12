@@ -1,10 +1,20 @@
+// ShirtCanvas — v3 — 2026-07-09
+// Changelog: render layer theo zoneId được gán, backward compatible với printArea cũ
 import { useEffect, useRef, useState } from "react";
 
 /**
  * Render sắc nét trên màn hình thường + Retina.
  * Hình in luôn giữ đúng tỉ lệ PNG gốc — không bao giờ bóp méo.
  */
-export default function ShirtCanvas({ shirtPhotoUrl, layers, printArea }) {
+function getZones(design) {
+  if (design?.printZones?.length) return design.printZones;
+  const zones = [];
+  if (design?.printArea) zones.push({id:"front-main",side:"front",...design.printArea});
+  if (design?.printAreaBack) zones.push({id:"back-main",side:"back",...design.printAreaBack});
+  return zones;
+}
+
+export default function ShirtCanvas({ shirtPhotoUrl, layers, design, printArea }) {
   const canvasRef    = useRef(null);
   const containerRef = useRef(null);
   const [status, setStatus] = useState("idle");
@@ -44,15 +54,20 @@ export default function ShirtCanvas({ shirtPhotoUrl, layers, printArea }) {
 
       if (!layers?.length || !printArea) { setStatus("done"); return; }
 
-      const { cx, cy, w } = printArea;
+      const zones = getZones(design||{printArea});
 
       for (const layer of layers) {
         if (!layer.png || !layer.inkHex) continue;
+        // Tim zone cua layer
+        const zoneId = layer.zoneId || (layer.side==="back"?"back-main":"front-main");
+        const zone = zones.find(z=>z.id===zoneId) || zones[0];
+        if (!zone) continue;
+        const { cx, cy, w } = zone;
+
         await new Promise(resolve => {
           const img = new Image();
           img.crossOrigin = "anonymous";
           img.onload = () => {
-            // Tô màu
             const off  = document.createElement("canvas");
             off.width  = img.naturalWidth  || img.width;
             off.height = img.naturalHeight || img.height;
@@ -70,8 +85,6 @@ export default function ShirtCanvas({ shirtPhotoUrl, layers, printArea }) {
               px[i+3] = Math.round((1 - brightness) * px[i+3]);
             }
             octx.putImageData(id, 0, 0);
-
-            // Vị trí — dùng tỉ lệ PNG thực tế (không bóp méo)
             const dw = sw * w;
             const dh = (off.height / off.width) * dw;
             const dx = sx + sw * cx - dw / 2;
