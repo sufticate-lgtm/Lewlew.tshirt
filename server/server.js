@@ -283,6 +283,16 @@ app.delete("/api/admin/designs/:id",requireAdmin,(req,res)=>{
   writeDB(db); res.json(db.designs);
 });
 
+/* Duplicate design */
+app.post("/api/admin/designs/:id/duplicate",requireAdmin,async(req,res)=>{
+  const db=readDB();
+  const src=db.designs.find(d=>d.id===req.params.id);
+  const newId=src.id+"-copy-"+Date.now().toString(36);
+  const newDesign={...JSON.parse(JSON.stringify(src)),id:newId,name:src.name+" (copy)"};
+  db.designs.push(newDesign);
+  writeDB(db);res.status(201).json(db.designs);
+});
+
 /* ── ADMIN: design layers (manual PNG upload) ───────────── */
 app.post("/api/admin/designs/:id/layers",requireAdmin,upload.single("png"),
   async(req,res)=>{
