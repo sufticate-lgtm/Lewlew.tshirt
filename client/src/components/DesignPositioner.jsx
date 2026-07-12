@@ -1,18 +1,13 @@
-// DesignPositioner — v3 — 2026-07-09
-// Changelog: hỗ trợ nhiều vùng in độc lập, mỗi vùng màu riêng, thêm/xóa/đặt tên vùng
-/**
- * DesignPositioner — hỗ trợ nhiều vùng in (printZones)
- * Mỗi vùng có tên, mặt (front/back), vị trí độc lập
- * Backward compatible với printArea + printAreaBack cũ
- */
-import { useRef, useState, useEffect } from "react";
+// DesignPositioner — v4 — 2026-07-12
+// Changelog: undo/redo, auto-save khi kéo/resize/thêm/xóa zone, duplicate design
+import { useRef, useState, useEffect, useCallback } from "react";
+const API_URL = import.meta.env.VITE_API_URL || "/api";
 
 const RULER_FRONT   = "/seed-uploads/ruler-front.png";
 const RULER_BACK    = "/seed-uploads/ruler-back.png";
 const RULER_OPACITY = 0.55;
 const ZONE_COLORS   = ["#e8590c","#1971C2","#2F9E44","#7048E8","#c2255c","#0c8599"];
 
-// Chuyen doi design cu sang printZones
 function normalizeZones(design) {
   if (design.printZones?.length) return design.printZones;
   const zones = [];
@@ -32,22 +27,30 @@ export default function DesignPositioner({
   shirtPhotoUrl, shirtPhotoBackUrl,
   designLayers, design,
   calibration, onChangeZones,
+  password, designId,
 }) {
   const containerRef = useRef(null);
-  const [side,       setSide]       = useState("front");
-  const [selectedId, setSelectedId] = useState(null);
-  const [dragging,   setDragging]   = useState(null);
-  const [start,      setStart]      = useState(null);
-  const [ratios,     setRatios]     = useState({}); // zoneId -> h/w ratio
-  const [newName,    setNewName]    = useState("");
-  const [zones,      setZones]      = useState(() => normalizeZones(design||{}));
+  const saveTimer    = useRef(null);
+  const [side,        setSide]       = useState("front");
+  const [selectedId,  setSelectedId] = useState(null);
+  const [dragging,    setDragging]   = useState(null);
+  const [start,       setStart]      = useState(null);
+  const [ratios,      setRatios]     = useState({});
+  const [newName,     setNewName]    = useState("");
+  const [zones,       setZones]      = useState(() => normalizeZones(design||{}));
+  // Undo/Redo history
+  const [history,     setHistory]    = useState([normalizeZones(design||{})]);
+  const [histIdx,     setHistIdx]    = useState(0);
 
-  const fpc     = calibration?.fracPerCm || 0.0191;
+  const fpc      = calibration?.fracPerCm || 0.0191;
   const photoUrl = side==="back" ? (shirtPhotoBackUrl||shirtPhotoUrl) : shirtPhotoUrl;
   const rulerUrl = side==="back" ? RULER_BACK : RULER_FRONT;
   const hasBack  = !!shirtPhotoBackUrl;
 
-  // Dong bo zones len cha khi thay doi
+  const canUndo = histIdx > 0;
+  const canRedo = histIdx < history.length - 1;
+
+  // Sync zones lên cha
   useEffect(() => { onChangeZones && onChangeZones(zones); }, [zones]);
 
   // Reset khi design thay doi
@@ -55,24 +58,76 @@ export default function DesignPositioner({
     const z = normalizeZones(design||{});
     setZones(z);
     setSelectedId(z[0]?.id || null);
+    setHistory([z]);
+    setHistIdx(0);
   }, [design?.id]);
 
-  // Doc ti le PNG cua tung zone
+  // Doc ti le PNG
   useEffect(() => {
-    const newRatios = {};
     (designLayers||[]).forEach(l => {
       const zid = l.zoneId || (l.side==="back"?"back-main":"front-main");
-      if (l.png && !newRatios[zid]) {
+      if (l.png) {
         const img = new Image();
         img.onload = () => {
-          if (img.naturalWidth > 0) {
+          if (img.naturalWidth > 0)
             setRatios(r => ({...r, [zid]: img.naturalHeight/img.naturalWidth}));
-          }
         };
         img.src = l.png;
       }
     });
   }, [designLayers]);
+
+  // Keyboard undo/redo
+  useEffect(() => {
+    function onKey(e) {
+      if ((e.ctrlKey||e.metaKey) && e.key==="z" && !e.shiftKey) { e.preventDefault(); undo(); }
+      if ((e.ctrlKey||e.metaKey) && (e.key==="y" || (e.key==="z"&&e.shiftKey))) { e.preventDefault(); redo(); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [histIdx, history]);
+
+  // Auto-save debounce 600ms
+  function scheduleSave(zs) {
+    if (!password||!designId) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      try {
+        await fetch(API_URL+"/admin/designs/"+encodeURIComponent(designId), {
+          method:"PATCH",
+          headers:{"Content-Type":"application/json","x-admin-password":password},
+          body:JSON.stringify({printZones:zs})
+        });
+      } catch(e) {}
+    }, 600);
+  }
+
+  // Push vào history + save
+  function commitZones(zs) {
+    setZones(zs);
+    setHistory(h => {
+      const trimmed = h.slice(0, histIdx+1);
+      return [...trimmed, zs].slice(-30); // max 30 bước
+    });
+    setHistIdx(i => Math.min(i+1, 29));
+    scheduleSave(zs);
+  }
+
+  function undo() {
+    if (!canUndo) return;
+    const newIdx = histIdx - 1;
+    setHistIdx(newIdx);
+    setZones(history[newIdx]);
+    scheduleSave(history[newIdx]);
+  }
+
+  function redo() {
+    if (!canRedo) return;
+    const newIdx = histIdx + 1;
+    setHistIdx(newIdx);
+    setZones(history[newIdx]);
+    scheduleSave(history[newIdx]);
+  }
 
   const visibleZones = zones.filter(z => z.side === side);
   const selectedZone = zones.find(z => z.id === selectedId);
@@ -80,7 +135,8 @@ export default function DesignPositioner({
   const curW  = selectedZone?.w || 0.15;
   const curH  = curW * ratio;
 
-  function updateZone(id, patch) {
+  // updateZone chỉ dùng trong drag (không commit vào history mỗi frame)
+  function updateZoneDrag(id, patch) {
     setZones(zs => zs.map(z => z.id===id ? {...z,...patch} : z));
   }
 
@@ -88,13 +144,15 @@ export default function DesignPositioner({
     const name = newName.trim() || `Vùng ${zones.length+1}`;
     const id   = "zone_" + Date.now();
     const newZ = {id, name, side, cx:0.50, cy:0.37, w:0.15};
-    setZones(zs => [...zs, newZ]);
+    const next = [...zones, newZ];
+    commitZones(next);
     setSelectedId(id);
     setNewName("");
   }
 
   function removeZone(id) {
-    setZones(zs => zs.filter(z => z.id!==id));
+    const next = zones.filter(z => z.id!==id);
+    commitZones(next);
     setSelectedId(zones.find(z=>z.id!==id)?.id || null);
   }
 
@@ -119,17 +177,24 @@ export default function DesignPositioner({
       const dx  = cur.x - start.pos.x;
       const dy  = cur.y - start.pos.y;
       if (dragging.type==="move") {
-        updateZone(dragging.zoneId, {
+        updateZoneDrag(dragging.zoneId, {
           cx: Math.max(0.01, Math.min(0.99, start.zone.cx+dx)),
           cy: Math.max(0.01, Math.min(0.99, start.zone.cy+dy)),
         });
       } else if (dragging.type==="resize") {
-        updateZone(dragging.zoneId, {
+        updateZoneDrag(dragging.zoneId, {
           w: Math.max(0.02, Math.min(0.95, start.zone.w+dx*2))
         });
       }
     }
-    function onUp() { setDragging(null); }
+    function onUp() {
+      // Commit vào history khi thả tay
+      setZones(zs => {
+        commitZones(zs);
+        return zs;
+      });
+      setDragging(null);
+    }
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup",   onUp);
     window.addEventListener("touchmove", onMove, {passive:false});
@@ -142,7 +207,6 @@ export default function DesignPositioner({
     };
   }, [dragging, start]);
 
-  // W/H inputs cho zone dang chon
   const [wInput, setWInput] = useState((curW/fpc).toFixed(1));
   const [hInput, setHInput] = useState((curH/fpc).toFixed(1));
   useEffect(() => {
@@ -153,22 +217,24 @@ export default function DesignPositioner({
   function applyW(val) {
     const cm = parseFloat(val);
     if (!isNaN(cm) && cm>0 && selectedZone) {
-      updateZone(selectedId, {w: cm*fpc});
+      const next = zones.map(z => z.id===selectedId ? {...z, w:cm*fpc} : z);
+      commitZones(next);
       setHInput((cm*ratio).toFixed(1));
     }
   }
   function applyH(val) {
     const cm = parseFloat(val);
     if (!isNaN(cm) && cm>0 && ratio>0 && selectedZone) {
-      updateZone(selectedId, {w: (cm/ratio)*fpc});
+      const next = zones.map(z => z.id===selectedId ? {...z, w:(cm/ratio)*fpc} : z);
+      commitZones(next);
       setWInput((cm/ratio).toFixed(1));
     }
   }
 
   return (
     <div>
-      {/* Tab mặt */}
-      <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center"}}>
+      {/* Tab mặt + Undo/Redo */}
+      <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center",flexWrap:"wrap"}}>
         {[["front","Mặt trước"],["back","Mặt sau"]].map(([v,label])=>{
           const disabled = v==="back" && !hasBack;
           return (
@@ -185,9 +251,20 @@ export default function DesignPositioner({
             </button>
           );
         })}
+        {/* Undo/Redo buttons */}
+        <div style={{display:"flex",gap:4,marginLeft:"auto"}}>
+          <button onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)"
+            style={{padding:"6px 12px",border:"2px solid var(--line)",borderRadius:6,
+              background:"#fff",cursor:canUndo?"pointer":"default",
+              opacity:canUndo?1:0.3,fontWeight:700,fontSize:13}}>↩ Undo</button>
+          <button onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Y)"
+            style={{padding:"6px 12px",border:"2px solid var(--line)",borderRadius:6,
+              background:"#fff",cursor:canRedo?"pointer":"default",
+              opacity:canRedo?1:0.3,fontWeight:700,fontSize:13}}>↪ Redo</button>
+        </div>
       </div>
 
-      {/* Danh sach vung hien tai */}
+      {/* Danh sach vung */}
       <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
         {visibleZones.map((z,i)=>{
           const color = ZONE_COLORS[zones.indexOf(z) % ZONE_COLORS.length];
@@ -205,7 +282,6 @@ export default function DesignPositioner({
             </div>
           );
         })}
-        {/* Them vung moi */}
         <div style={{display:"flex",gap:4,alignItems:"center"}}>
           <input value={newName} onChange={e=>setNewName(e.target.value)}
             placeholder={`Vùng ${zones.length+1}`}
@@ -232,7 +308,6 @@ export default function DesignPositioner({
           }
           <img src={rulerUrl} alt="ruler" style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"contain",pointerEvents:"none",opacity:RULER_OPACITY}}/>
 
-          {/* Tất cả vùng in */}
           {visibleZones.map((z,i) => {
             const color    = ZONE_COLORS[zones.indexOf(z) % ZONE_COLORS.length];
             const zRatio   = ratios[z.id] || 1;
@@ -253,19 +328,16 @@ export default function DesignPositioner({
                   cursor:"grab",overflow:"hidden",
                   opacity:isActive?1:0.6,
                   zIndex:isActive?2:1}}>
-                {/* Label vùng */}
                 <div style={{position:"absolute",top:0,left:0,
                   background:color,color:"#fff",fontSize:9,fontWeight:700,
                   padding:"1px 4px",borderRadius:"0 0 4px 0",zIndex:3,whiteSpace:"nowrap"}}>
                   {z.name}
                 </div>
-                {/* Layer preview */}
                 {layersInZone.map((l,li)=>l.png&&(
                   <img key={li} src={l.png} alt="" style={{position:"absolute",inset:0,
                     width:"100%",height:"100%",objectFit:"contain",
                     filter:"invert(1) brightness(10)",opacity:0.7,pointerEvents:"none"}}/>
                 ))}
-                {/* Resize handle */}
                 {isActive&&(
                   <div onMouseDown={e=>onMouseDown(e,"resize",z.id)}
                     onTouchStart={e=>onMouseDown(e,"resize",z.id)}
@@ -277,7 +349,6 @@ export default function DesignPositioner({
             );
           })}
 
-          {/* Nut them vung neu chua co vung nao o mat nay */}
           {visibleZones.length===0&&(
             <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
               <button onClick={addZone}
@@ -290,7 +361,7 @@ export default function DesignPositioner({
         </div>
       </div>
 
-      {/* W/H cho vung dang chon */}
+      {/* W/H */}
       {selectedZone&&selectedZone.side===side&&(
         <>
           <div style={{marginTop:8,fontSize:12,color:"#555",fontWeight:600}}>
@@ -322,7 +393,7 @@ export default function DesignPositioner({
         </>
       )}
       <div style={{fontSize:11,color:"#8a8576",marginTop:6}}>
-        Click vùng để chọn · Kéo để di chuyển · Kéo góc để resize
+        Click vùng để chọn · Kéo để di chuyển · Kéo góc để resize · Ctrl+Z undo · Ctrl+Y redo
       </div>
     </div>
   );
