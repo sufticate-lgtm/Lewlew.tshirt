@@ -9,7 +9,7 @@ import {
   getInkColors,    adminAddInkColor,   adminDeleteInkColor,
   getDesigns,      adminGetDesigns,  adminAddDesign,     adminPatchDesign, adminDeleteDesign,
   adminAddLayer,   adminPatchLayer,    adminDeleteLayer,
-  adminPatchDesignStatus,  adminReorderLayers,
+  adminPatchDesignStatus,  adminReorderLayers,  adminDuplicateDesign,
   adminPatchLayerFull, adminPatchShirtColorFull, adminPatchInkColor,
   adminSetPrintAreaBack,
   adminGetAccounts, adminAddAccount, adminDeleteAccount,
@@ -573,6 +573,12 @@ function DesignCard({design,inkColors,settings,password,onChange,setError,expand
           ))}
           {design.layers.length>4&&<span style={{fontSize:11,color:"#8a8576"}}>+{design.layers.length-4}</span>}
         </div>
+        <button onClick={async e=>{e.stopPropagation();
+          try{await adminDuplicateDesign(password,design.id);onChange();}catch(err){setError(err.message);}}}
+          title="Nhân bản hình in"
+          style={{background:"#f0fdf4",border:"2px solid #86efac",borderRadius:6,padding:"4px 8px",cursor:"pointer",display:"flex",alignItems:"center",gap:4,fontSize:12,color:"#166534",fontWeight:700}}>
+          ⧉ Nhân bản
+        </button>
         <button onClick={e=>{e.stopPropagation();if(!confirm("Xoá hình in này và toàn bộ layers?"))return;
           adminDeleteDesign(password,design.id).then(onChange).catch(e=>setError(e.message));}}
           className="xi-remove-btn"><Trash2 size={16}/></button>
