@@ -137,7 +137,11 @@ def process_layers(layers):
             process_layers(layer)
             continue
         try:
-            img = layer.topil()
+            try:
+                img = layer.composite()
+                if img is None: img = layer.topil()
+            except:
+                img = layer.topil()
             if img is None:
                 continue
             img = img.convert('RGBA')
