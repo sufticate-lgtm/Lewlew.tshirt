@@ -1,3 +1,5 @@
+// Admin — v4 — 2026-07-09
+// Changelog: multi-zone positioner, layer dropdown chọn vùng, Public/R&D/Private status
 import { useEffect, useState, useCallback } from "react";
 import { Trash2, Loader2, LogOut, Upload, ChevronDown, ChevronRight, Layers } from "lucide-react";
 import {
@@ -5,7 +7,7 @@ import {
   adminUpdateSettings, adminUploadRuler,
   getShirtColors,  adminAddShirtColor, adminPatchShirtColor, adminDeleteShirtColor,
   getInkColors,    adminAddInkColor,   adminDeleteInkColor,
-  getDesigns,      adminAddDesign,     adminPatchDesign, adminDeleteDesign,
+  getDesigns,      adminGetDesigns,  adminAddDesign,     adminPatchDesign, adminDeleteDesign,
   adminAddLayer,   adminPatchLayer,    adminDeleteLayer,
   adminPatchDesignStatus,  adminReorderLayers,
   adminPatchLayerFull, adminPatchShirtColorFull, adminPatchInkColor,
@@ -324,7 +326,7 @@ function DesignsTab({password}){
   const [extracted,  setExtracted]  = useState(null); // {layers:[...], canvas:{w,h}}
 
   function load(){
-    Promise.all([getDesigns(),getInkColors(),getSettings(),getShirtColors()])
+    Promise.all([adminGetDesigns(password),getInkColors(),getSettings(),getShirtColors()])
       .then(([d,ic,s,sc])=>{
         setDesigns(d);setInkColors(ic);
         setSettings({...s, _firstShirtPhoto: sc[0]?.photo||null, _firstShirtPhotoBack: sc[0]?.photoBack||null});
@@ -577,11 +579,9 @@ function DesignCard({design,inkColors,settings,password,onChange,setError,expand
               shirtPhotoUrl={settings?._firstShirtPhoto}
               shirtPhotoBackUrl={settings?._firstShirtPhotoBack}
               designLayers={design.layers}
-              printArea={printArea}
-              printAreaBack={printAreaBack}
+              design={design}
               calibration={calibration}
-              onChangeFront={handlePrintAreaChange}
-              onChangeBack={setPrintAreaBack}/>
+              onChangeZones={zones=>adminPatchDesign(password,design.id,{printZones:zones}).then(onChange)}/>
           </div>
 
           {/* Layers */}
@@ -617,13 +617,17 @@ function DesignCard({design,inkColors,settings,password,onChange,setError,expand
                       border:"1px solid var(--line)",borderRadius:3,padding:"2px 4px",
                       background:l.side==="back"?"#dbeafe":l.side==="both"?"#fef9c3":"#dcfce7",
                       color:l.side==="back"?"#1d4ed8":l.side==="both"?"#92400e":"#166534"}}
+                    value={l.zoneId||(l.side==="back"?"back-main":"front-main")}
                     onChange={async e=>{
-                      try{await adminPatchLayer(password,design.id,l.id,{side:e.target.value});onChange();}
+                      try{await adminPatchLayer(password,design.id,l.id,{zoneId:e.target.value});onChange();}
                       catch(e2){setError(e2.message);}
                     }}>
-                    <option value="front">⬜ Mặt trước</option>
-                    <option value="back">⬛ Mặt sau</option>
-                    <option value="both">◧ Cả hai mặt</option>
+                    {(design.printZones&&design.printZones.length>0
+                      ? design.printZones
+                      : [{id:"front-main",name:"Mặt trước"},{id:"back-main",name:"Mặt sau"}]
+                    ).map(z=>(
+                      <option key={z.id} value={z.id}>{z.name}</option>
+                    ))}
                   </select>
                   {/* Nut doi thu tu layer */}
                   <div style={{display:"flex",gap:4,justifyContent:"center",marginBottom:4}}>
