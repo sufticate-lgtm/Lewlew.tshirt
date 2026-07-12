@@ -9,11 +9,10 @@ import {
   getInkColors,    adminAddInkColor,   adminDeleteInkColor,
   getDesigns,      adminGetDesigns,  adminAddDesign,     adminPatchDesign, adminDeleteDesign,
   adminAddLayer,   adminPatchLayer,    adminDeleteLayer,
-  adminPatchDesignStatus,  adminReorderLayers,  adminDuplicateDesign,
+  adminPatchDesignStatus,  adminReorderLayers,
   adminPatchLayerFull, adminPatchShirtColorFull, adminPatchInkColor,
   adminSetPrintAreaBack,
   adminGetAccounts, adminAddAccount, adminDeleteAccount,
-  adminExtractPsd, adminCreateDesignFromPsd,
   getSettings,
 } from "../api";
 import ColorEyedropper  from "../components/ColorEyedropper";
@@ -320,10 +319,6 @@ function DesignsTab({password}){
   const [expanded, setExpanded] = useState(null);
 
   // PSD extract state
-  const [psdFile,    setPsdFile]    = useState(null);
-  const [psdName,    setPsdName]    = useState("");
-  const [extracting, setExtracting] = useState(false);
-  const [extracted,  setExtracted]  = useState(null); // {layers:[...], canvas:{w,h}}
 
   function load(){
     Promise.all([adminGetDesigns(password),getInkColors(),getSettings(),getShirtColors()])
@@ -336,46 +331,7 @@ function DesignsTab({password}){
   useEffect(load,[]);
 
   /* Tự động đặt tên từ tên file PSD */
-  function onPsdFileChange(f){
-    setPsdFile(f);
-    setExtracted(null);
-    if(f) setPsdName(f.name.replace(/\.(psd|psb|tiff?)/i,"").replace(/[_-]/g," ").trim());
-  }
 
-  /* Upload PSD → server tách layer */
-  async function handleExtract(e){
-    e.preventDefault();
-    if(!psdFile) return setError("Cần chọn file PSD.");
-    setExtracting(true); setError(null); setExtracted(null);
-    try{
-      const result = await adminExtractPsd(password, psdFile);
-      // Gán màu mực mặc định (lần lượt từ bảng màu)
-      const layersWithInk = result.layers.map((l,i)=>({
-        ...l,
-        layerName:    l.name,
-        defaultInkId: inkColors[i % inkColors.length]?.id || (inkColors[0]?.id) || "black",
-      }));
-      setExtracted({...result, layers: layersWithInk});
-    }catch(e){ setError("Lỗi tách PSD: " + e.message); }
-    finally{ setExtracting(false); }
-  }
-
-  /* Tạo design trong DB từ kết quả extract */
-  async function handleCreate(){
-    if(!extracted||!psdName.trim()) return;
-    setError(null);
-    try{
-      await adminCreateDesignFromPsd(
-        password,
-        psdName.trim(),
-        extracted.layers.map(l=>({url:l.url, name:l.layerName, defaultInkId:l.defaultInkId})),
-        null
-      );
-      // Reset
-      setPsdFile(null); setPsdName(""); setExtracted(null);
-      load();
-    }catch(e){ setError(e.message); }
-  }
 
   /* Thêm design trống */
   async function handleAddDesign(e){
@@ -390,103 +346,6 @@ function DesignsTab({password}){
     <div>
       {error&&<div className="xi-error">{error}</div>}
 
-      {/* ── UPLOAD PSD TỰ ĐỘNG ─────────────────────────── */}
-      <div style={{background:"#fff",border:"2px solid var(--orange)",borderRadius:8,padding:20,marginBottom:28}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-          <Layers size={20} color="var(--orange)"/>
-          <strong style={{fontSize:15}}>Upload PSD — Tách layer tự động</strong>
-        </div>
-        <p style={{fontSize:13,color:"#6b675c",marginBottom:14}}>
-          Upload file <strong>.psd</strong> từ Photoshop. Hệ thống tự đọc từng layer, xuất thành PNG riêng,
-          giữ nguyên tọa độ để các màu mực khớp nhau khi ghép lại.
-        </p>
-
-        <form onSubmit={handleExtract}>
-          <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"flex-end",marginBottom:12}}>
-            <div className="xi-field" style={{flex:1,minWidth:200}}>
-              <label>Tên hình in *</label>
-              <input value={psdName} onChange={e=>setPsdName(e.target.value)}
-                placeholder="VD: Strawberry Bag" required/>
-            </div>
-            <div>
-              <label style={{display:"inline-flex",alignItems:"center",gap:8,
-                cursor:"pointer",border:"2px dashed var(--orange)",padding:"10px 14px",
-                borderRadius:6,fontSize:13,color:"var(--orange)",fontWeight:600}}>
-                <Upload size={16}/>
-                {psdFile ? psdFile.name : "Chọn file .PSD / .PSB"}
-                <input type="file" accept=".psd,.psb,.tif,.tiff" style={{display:"none"}}
-                  onChange={e=>onPsdFileChange(e.target.files[0])}/>
-              </label>
-            </div>
-            <button type="submit" className="xi-btn-primary"
-              disabled={extracting||!psdFile}
-              style={{background:"var(--orange)"}}>
-              {extracting ? <><Loader2 size={16} className="xi-spin"/> Đang tách layer...</> : "⚡ Tách Layer"}
-            </button>
-          </div>
-        </form>
-
-        {/* Kết quả extract */}
-        {extracted && (
-          <div style={{marginTop:16,padding:16,background:"#f8f5ef",borderRadius:8}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-              <strong style={{color:"#2F9E44"}}>
-                ✅ Tách thành công — {extracted.layers.length} layer
-                <span style={{fontSize:12,fontWeight:400,color:"#6b675c",marginLeft:8}}>
-                  ({extracted.canvas.w}×{extracted.canvas.h}px)
-                </span>
-              </strong>
-            </div>
-
-            {/* Hiển thị từng layer để chỉnh tên + màu mực mặc định */}
-            <div style={{display:"grid",gap:10,marginBottom:16}}>
-              {extracted.layers.map((l,i)=>(
-                <div key={i} style={{display:"flex",alignItems:"center",gap:10,
-                  background:"#fff",border:"2px solid var(--line)",borderRadius:8,padding:"8px 12px",
-                  flexWrap:"wrap"}}>
-                  {/* Thumbnail */}
-                  <div style={{width:56,height:56,background:"#e8e5de",borderRadius:6,
-                    display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden"}}>
-                    <img src={l.url} alt={l.name}
-                      style={{maxWidth:"100%",maxHeight:"100%",objectFit:"contain",filter:"brightness(0)"}}/>
-                  </div>
-                  {/* Tên layer */}
-                  <div className="xi-field" style={{flex:1,minWidth:150}}>
-                    <label style={{fontSize:11}}>Tên layer</label>
-                    <input value={l.layerName}
-                      onChange={e=>setExtracted(ex=>({...ex,
-                        layers:ex.layers.map((x,j)=>j===i?{...x,layerName:e.target.value}:x)
-                      }))}
-                      style={{fontSize:13}}/>
-                  </div>
-                  {/* Màu mực mặc định */}
-                  <div className="xi-field" style={{minWidth:130}}>
-                    <label style={{fontSize:11}}>Màu mực mặc định</label>
-                    <select value={l.defaultInkId}
-                      onChange={e=>setExtracted(ex=>({...ex,
-                        layers:ex.layers.map((x,j)=>j===i?{...x,defaultInkId:e.target.value}:x)
-                      }))}
-                      style={{fontSize:13}}>
-                      {inkColors.map(c=>(
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  {/* Ink count */}
-                  <div style={{fontSize:11,color:"#8a8576",textAlign:"center"}}>
-                    {(l.inkPx/1000).toFixed(0)}K px
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <button className="xi-btn-primary" onClick={handleCreate}
-              style={{fontSize:15,padding:"12px 28px"}}>
-              ✅ Tạo hình in "{psdName}"
-            </button>
-          </div>
-        )}
-      </div>
 
       {/* ── DANH SÁCH DESIGNS ──────────────────────────── */}
       {designs.map(d=>(
@@ -573,12 +432,6 @@ function DesignCard({design,inkColors,settings,password,onChange,setError,expand
           ))}
           {design.layers.length>4&&<span style={{fontSize:11,color:"#8a8576"}}>+{design.layers.length-4}</span>}
         </div>
-        <button onClick={async e=>{e.stopPropagation();
-          try{await adminDuplicateDesign(password,design.id);onChange();}catch(err){setError(err.message);}}}
-          title="Nhân bản hình in"
-          style={{background:"#f0fdf4",border:"2px solid #86efac",borderRadius:6,padding:"4px 8px",cursor:"pointer",display:"flex",alignItems:"center",gap:4,fontSize:12,color:"#166534",fontWeight:700}}>
-          ⧉ Nhân bản
-        </button>
         <button onClick={e=>{e.stopPropagation();if(!confirm("Xoá hình in này và toàn bộ layers?"))return;
           adminDeleteDesign(password,design.id).then(onChange).catch(e=>setError(e.message));}}
           className="xi-remove-btn"><Trash2 size={16}/></button>
