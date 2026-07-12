@@ -56,6 +56,8 @@ export const adminPatchDesignStatus = (pw,id,status) =>
   request(`/admin/designs/${encodeURIComponent(id)}`,j('PATCH',{status},pw));
 export const adminPatchDesign  = (pw,id,data) =>
   request(`/admin/designs/${encodeURIComponent(id)}`,j("PATCH",data,pw));
+export const adminDuplicateDesign = (pw,id) => request(`/admin/designs/${encodeURIComponent(id)}/duplicate`,{method:"POST",...{headers:{"x-admin-password":pw}}});
+export const adminDuplicateDesign = (pw,id) => request(`/admin/designs/${encodeURIComponent(id)}/duplicate`,{method:"POST",headers:{"x-admin-password":pw}});
 export const adminDeleteDesign = (pw,id) =>
   request(`/admin/designs/${encodeURIComponent(id)}`,{method:"DELETE",...auth(pw)});
 
