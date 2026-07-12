@@ -445,3 +445,6 @@ app.use(express.static(CLIENT_DIST));
 app.get("*",(req,res)=>res.sendFile(path.join(CLIENT_DIST,"index.html")));
 
 app.listen(PORT,()=>console.log(`Lewlew Tshirt chạy tại http://localhost:${PORT}`));
+
+// DRIVE SYNC
+const ds=require("./drive-sync");ds.sync().catch(console.error);setInterval(()=>ds.sync().catch(console.error),60000);
