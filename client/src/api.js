@@ -14,7 +14,8 @@ const auth=pw=>({headers:{"x-admin-password":pw}});
 
 export const getShirtColors = () => request("/shirt-colors");
 export const getInkColors   = () => request("/ink-colors");
-export const getDesigns     = () => request("/designs");
+export const getDesigns        = () => request("/designs");
+export const adminGetDesigns   = (pw) => request("/admin/designs",auth(pw));
 export const getSettings    = () => request("/settings");
 export const createOrder    = p  => request("/orders",j("POST",p));
 export const getOrder       = c  => request(`/orders/${encodeURIComponent(c)}`);
@@ -58,9 +59,12 @@ export const adminPatchDesign  = (pw,id,data) =>
 export const adminDeleteDesign = (pw,id) =>
   request(`/admin/designs/${encodeURIComponent(id)}`,{method:"DELETE",...auth(pw)});
 
-export const adminAddLayer    = (pw,designId,name,defaultInkId,pngFile) => {
+export const adminAddLayer    = (pw,designId,name,defaultInkId,pngFile,side,zoneId,pendingZones) => {
   const form=new FormData();
   form.append("name",name); form.append("defaultInkId",defaultInkId); form.append("png",pngFile);
+  if(side)         form.append("side",side);
+  if(zoneId)       form.append("zoneId",zoneId);
+  if(pendingZones) form.append("pendingZones",JSON.stringify(pendingZones));
   return request(`/admin/designs/${encodeURIComponent(designId)}/layers`,
     {method:"POST",headers:{"x-admin-password":pw},body:form});
 };
