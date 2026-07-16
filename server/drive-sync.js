@@ -1,12 +1,13 @@
-// drive-sync.js v3 — sync Google Drive → LewLew
-// Hỗ trợ: PNG/JPG (front-zone-layer.png) + PSD (front-zone.psd → tách layer tự động)
+// drive-sync.js v4
+// Tính năng mới:
+// 1. Auto-replace layer khi file cùng tên nhưng fileId khác
+// 2. Sync tên folder → tự cập nhật tên design
 
 const https  = require('https');
 const http   = require('http');
 const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
-const { execSync, spawnSync } = require('child_process');
 
 const SA          = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT || '{}');
 const FOLDER_ID   = process.env.DRIVE_FOLDER_ID || '16tTW4Vjcxb8ZnHQOj50yimQKPWn1gYUT';
@@ -20,15 +21,15 @@ function b64u(buf){ return buf.toString('base64').replace(/\+/g,'-').replace(/\/
 
 async function getToken(){
   const now=Math.floor(Date.now()/1000);
-  const hdr = b64u(Buffer.from(JSON.stringify({alg:'RS256',typ:'JWT'})));
-  const pay = b64u(Buffer.from(JSON.stringify({
+  const hdr=b64u(Buffer.from(JSON.stringify({alg:'RS256',typ:'JWT'})));
+  const pay=b64u(Buffer.from(JSON.stringify({
     iss:SA.client_email, scope:'https://www.googleapis.com/auth/drive.readonly',
     aud:'https://oauth2.googleapis.com/token', exp:now+3600, iat:now
   })));
-  const sign = crypto.createSign('RSA-SHA256');
+  const sign=crypto.createSign('RSA-SHA256');
   sign.update(`${hdr}.${pay}`);
-  const jwt = `${hdr}.${pay}.${b64u(sign.sign(SA.private_key))}`;
-  const body= `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`;
+  const jwt=`${hdr}.${pay}.${b64u(sign.sign(SA.private_key))}`;
+  const body=`grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`;
   return new Promise((ok,fail)=>{
     const r=https.request({hostname:'oauth2.googleapis.com',path:'/token',method:'POST',
       headers:{'Content-Type':'application/x-www-form-urlencoded','Content-Length':body.length}
@@ -57,7 +58,7 @@ function driveDownload(token,fileId,destPath){
     },res=>{
       if(res.statusCode>=400){fail(new Error('Download failed: '+res.statusCode));return;}
       res.pipe(file);
-      file.on('finish',()=>{ file.close(); ok(destPath); });
+      file.on('finish',()=>{file.close();ok(destPath);});
     }).on('error',fail);
   });
 }
@@ -74,9 +75,8 @@ function apiReq(method,p,body){
   });
 }
 
-function uploadLayer(designId,name,side,zoneId,pngPath){
+function uploadLayer(designId,name,side,zoneId,pngBuf){
   return new Promise((ok,fail)=>{
-    const pngBuf=fs.readFileSync(pngPath);
     const bnd='LewLew'+Date.now();
     const head=Buffer.from([
       `--${bnd}`,`Content-Disposition: form-data; name="name"`,``,name,
@@ -96,8 +96,11 @@ function uploadLayer(designId,name,side,zoneId,pngPath){
   });
 }
 
-// ── Parse tên file PNG ────────────────────────────────────
-// front-nguc-than-chinh.png → {side, zoneSlug, zoneName, layerName}
+function deleteLayer(designId,layerId){
+  return apiReq('DELETE',`/admin/designs/${encodeURIComponent(designId)}/layers/${encodeURIComponent(layerId)}`);
+}
+
+// ── Parse tên file ────────────────────────────────────────
 function parseFileName(fname){
   const base=fname.replace(/\.(png|jpg|jpeg)$/i,'');
   const m=base.match(/^(front|back)-([^-]+)-(.+)$/i);
@@ -106,71 +109,8 @@ function parseFileName(fname){
            zoneName:m[2].replace(/-/g,' '), layerName:m[3].replace(/-/g,' ') };
 }
 
-// Parse tên file PSD: front-nguc.psd → {side, zoneSlug, zoneName}
-function parsePSDName(fname){
-  const base=fname.replace(/\.psd$/i,'');
-  const m=base.match(/^(front|back)-(.+)$/i);
-  if(!m) return null;
-  return { side:m[1].toLowerCase(), zoneSlug:m[2].toLowerCase(), zoneName:m[2].replace(/-/g,' ') };
-}
-
-// ── Tách PSD thành các PNG ────────────────────────────────
-function extractPSDLayers(psdPath, outDir){
-  const script = `
-import sys, os, json
-from psd_tools import PSDImage
-from PIL import Image
-
-psdPath = sys.argv[1]
-outDir  = sys.argv[2]
-MAX_PX  = 2000
-
-os.makedirs(outDir, exist_ok=True)
-psd = PSDImage.open(psdPath)
-results = []
-
-def process_layers(layers):
-    for layer in layers:
-        if not layer.is_visible():
-            continue
-        if hasattr(layer, '__iter__') and layer.kind in ('group',):
-            process_layers(layer)
-            continue
-        try:
-            try:
-                img = layer.composite()
-                if img is None: img = layer.topil()
-            except:
-                img = layer.topil()
-            if img is None:
-                continue
-            img = img.convert('RGBA')
-            w, h = img.size
-            if max(w,h) > MAX_PX:
-                scale = MAX_PX / max(w,h)
-                img = img.resize((int(w*scale), int(h*scale)), Image.LANCZOS)
-            # Tên layer → filename an toàn
-            safe = layer.name.strip().replace('/','-').replace('\\\\','-')
-            outPath = os.path.join(outDir, safe + '.png')
-            img.save(outPath, 'PNG', optimize=True)
-            results.append({'name': layer.name, 'path': outPath,
-                           'size': os.path.getsize(outPath)})
-        except Exception as e:
-            print(f'WARN layer {layer.name}: {e}', file=sys.stderr)
-
-process_layers(psd)
-print(json.dumps(results))
-`;
-  fs.writeFileSync('/tmp/_psd_extract.py', script);
-  const res = spawnSync('python3', ['/tmp/_psd_extract.py', psdPath, outDir], {timeout:60000});
-  if(res.status !== 0){
-    throw new Error('PSD extract failed: ' + (res.stderr||'').toString());
-  }
-  try { return JSON.parse(res.stdout.toString().trim()); }
-  catch { throw new Error('PSD extract bad output: ' + res.stdout.toString()); }
-}
-
 // ── Synced state ──────────────────────────────────────────
+// Lưu thêm: {stateKey, folderId→designId mapping, layer fileId mapping}
 function loadSynced(){ try{return JSON.parse(fs.readFileSync(SYNCED_FILE,'utf8'));}catch{return {};} }
 function saveSynced(d){ fs.writeFileSync(SYNCED_FILE,JSON.stringify(d,null,2)); }
 
@@ -178,116 +118,141 @@ function saveSynced(d){ fs.writeFileSync(SYNCED_FILE,JSON.stringify(d,null,2)); 
 async function sync(){
   if(!SA.private_key){ console.log('[DriveSync] no service account, skip'); return; }
   console.log('[DriveSync] start', new Date().toISOString());
-  fs.mkdirSync(TMP_DIR, {recursive:true});
+  fs.mkdirSync(TMP_DIR,{recursive:true});
 
   let token;
   try{ token=await getToken(); }
   catch(e){ console.error('[DriveSync] auth fail:',e.message||e); return; }
 
-  const synced   = loadSynced();
-  const designs  = await apiReq('GET','/admin/designs').catch(()=>[]) || [];
-  const designMap= {};
-  for(const d of (Array.isArray(designs)?designs:[])) designMap[d.name]=d;
+  const synced=loadSynced();
 
-  const folders = await driveList(token, FOLDER_ID).catch(()=>[]);
+  // Map: folderId → designId (lưu để track khi folder đổi tên)
+  if(!synced._folderDesignMap) synced._folderDesignMap={};
+  // Map: folderId+fileName → {fileId, layerId} (để detect replace)
+  if(!synced._layerFileMap) synced._layerFileMap={};
+
+  const allDesigns=await apiReq('GET','/admin/designs').catch(()=>[]) || [];
+  const designById={};
+  const designByName={};
+  for(const d of (Array.isArray(allDesigns)?allDesigns:[])){
+    designById[d.id]=d;
+    designByName[d.name]=d;
+  }
+
+  const folders=await driveList(token,FOLDER_ID).catch(()=>[]);
 
   for(const df of folders){
     if(df.mimeType!=='application/vnd.google-apps.folder') continue;
-    const designName=df.name;
+    const folderName=df.name;
+    const folderId=df.id;
 
-    const files=await driveList(token,df.id).catch(()=>[]);
-    const relevant=files.filter(f=>f.name.match(/\.(png|jpg|jpeg|psd)$/i));
-    if(!relevant.length){ console.log(`[DriveSync] skip empty: ${designName}`); continue; }
+    const files=await driveList(token,folderId).catch(()=>[]);
+    const pngs=files.filter(f=>f.name.match(/\.(png|jpg|jpeg)$/i));
+    if(!pngs.length){ console.log(`[DriveSync] skip empty: ${folderName}`); continue; }
 
-    const stateKey=relevant.map(f=>f.id+f.modifiedTime).sort().join('|');
-    if(synced[df.id]===stateKey){ console.log(`[DriveSync] no change: ${designName}`); continue; }
+    // State key gồm cả tên folder để detect rename
+    const stateKey=folderName+'::'+pngs.map(f=>f.id+f.modifiedTime).sort().join('|');
+    if(synced[folderId]===stateKey){ console.log(`[DriveSync] no change: ${folderName}`); continue; }
 
-    console.log(`[DriveSync] syncing: ${designName} (${relevant.length} files)`);
+    console.log(`[DriveSync] syncing: ${folderName} (${pngs.length} files)`);
 
-    // Tạo design nếu chưa có
-    let design=designMap[designName];
-    if(!design){
-      const res=await apiReq('POST','/admin/designs',{name:designName}).catch(()=>null);
-      const list=Array.isArray(res)?res:[];
-      design=list.find(d=>d.name===designName);
-      if(!design){ console.error(`[DriveSync] cannot create: ${designName}`); continue; }
-      designMap[designName]=design;
+    // ── TÍNH NĂNG 2: Sync tên folder → cập nhật tên design ──
+    let design=null;
+    const mappedDesignId=synced._folderDesignMap[folderId];
+
+    if(mappedDesignId && designById[mappedDesignId]){
+      design=designById[mappedDesignId];
+      // Kiểm tra tên có thay đổi không
+      if(design.name !== folderName){
+        console.log(`  [Rename] "${design.name}" → "${folderName}"`);
+        await apiReq('PATCH',`/admin/designs/${encodeURIComponent(design.id)}`,{name:folderName}).catch(()=>{});
+        design={...design, name:folderName};
+        designById[design.id]=design;
+        designByName[folderName]=design;
+      }
+    } else {
+      // Tìm theo tên
+      design=designByName[folderName];
     }
 
-    // Build zoneMap từ tất cả file
+    // Tạo design mới nếu chưa có
+    if(!design){
+      const res=await apiReq('POST','/admin/designs',{name:folderName}).catch(()=>null);
+      const list=Array.isArray(res)?res:[];
+      design=list.find(d=>d.name===folderName);
+      if(!design){ console.error(`[DriveSync] cannot create: ${folderName}`); continue; }
+      designById[design.id]=design;
+      designByName[folderName]=design;
+    }
+
+    // Lưu mapping folderId → designId
+    synced._folderDesignMap[folderId]=design.id;
+
+    // Build zoneMap
     const zoneMap={};
-    for(const f of relevant){
-      let parsed=null;
-      if(f.name.match(/\.psd$/i)) parsed=parsePSDName(f.name);
-      else parsed=parseFileName(f.name);
+    for(const f of pngs){
+      const parsed=parseFileName(f.name);
       if(!parsed) continue;
       const slug=`${parsed.side}-${parsed.zoneSlug}`;
       if(!zoneMap[slug]) zoneMap[slug]={id:`zone_${slug}`,name:parsed.zoneName,side:parsed.side,cx:0.50,cy:0.37,w:0.15};
     }
-
-    // Lưu printZones
     const printZones=Object.values(zoneMap);
     if(printZones.length){
       await apiReq('PATCH',`/admin/designs/${encodeURIComponent(design.id)}`,{printZones}).catch(()=>{});
     }
 
-    // Reload design
+    // Reload design để biết layers hiện tại
     const allD=await apiReq('GET','/admin/designs').catch(()=>[]);
     const cur=(Array.isArray(allD)?allD:[]).find(d=>d.id===design.id);
-    const existingLayers=new Set((cur?.layers||[]).map(l=>`${l.zoneId}::${l.name}`));
+    // Map: layerKey → layerId (để xóa khi replace)
+    const existingLayerMap={};
+    for(const l of (cur?.layers||[])){
+      const key=`${l.zoneId}::${l.name}`;
+      existingLayerMap[key]=l.id;
+    }
 
-    // Process từng file
-    for(const f of relevant){
-      if(f.name.match(/\.psd$/i)){
-        // PSD: tách layer
-        const psdInfo=parsePSDName(f.name);
-        if(!psdInfo){ console.log(`  skip bad PSD name: ${f.name}`); continue; }
-        const slug=`${psdInfo.side}-${psdInfo.zoneSlug}`;
-        const zone=zoneMap[slug];
-        const tmpPSD=path.join(TMP_DIR, `${df.id}_${f.id}.psd`);
-        const tmpOut=path.join(TMP_DIR, `${df.id}_${f.id}_layers`);
+    // Layer file map cho folder này
+    if(!synced._layerFileMap[folderId]) synced._layerFileMap[folderId]={};
+    const lfMap=synced._layerFileMap[folderId];
 
-        console.log(`  PSD: ${f.name} → extracting layers...`);
-        try{
-          await driveDownload(token,f.id,tmpPSD);
-          const layers=extractPSDLayers(tmpPSD,tmpOut);
-          console.log(`  PSD: ${layers.length} layers extracted`);
+    // Upload từng file
+    for(const f of pngs){
+      const parsed=parseFileName(f.name);
+      if(!parsed){ console.log(`  skip bad name: ${f.name}`); continue; }
+      const slug=`${parsed.side}-${parsed.zoneSlug}`;
+      const zone=zoneMap[slug];
+      const layerKey=`${zone.id}::${parsed.layerName}`;
+      const savedFileId=lfMap[f.name];
 
-          for(const ly of layers){
-            const key=`${zone.id}::${ly.name}`;
-            if(existingLayers.has(key)){ console.log(`    skip exists: ${ly.name}`); continue; }
-            console.log(`    upload layer: ${ly.name} (${Math.round(ly.size/1024)}KB)`);
-            await uploadLayer(design.id,ly.name,psdInfo.side,zone.id,ly.path)
-              .catch(e=>console.error('    upload err:',e.message));
-          }
-          // Dọn tmp
-          try{ fs.rmSync(tmpOut,{recursive:true}); fs.unlinkSync(tmpPSD); }catch{}
-        }catch(e){
-          console.error(`  PSD extract error: ${e.message}`);
-        }
+      // ── TÍNH NĂNG 1: Auto-replace khi fileId thay đổi ──
+      if(savedFileId && savedFileId!==f.id && existingLayerMap[layerKey]){
+        console.log(`  [Replace] ${f.name} (fileId changed)`);
+        // Xóa layer cũ
+        await deleteLayer(design.id, existingLayerMap[layerKey]).catch(()=>{});
+        delete existingLayerMap[layerKey];
+      } else if(existingLayerMap[layerKey] && savedFileId===f.id){
+        console.log(`  skip exists: ${parsed.layerName}`);
+        continue;
+      }
 
-      } else {
-        // PNG/JPG thông thường
-        const parsed=parseFileName(f.name);
-        if(!parsed){ console.log(`  skip bad name: ${f.name}`); continue; }
-        const slug=`${parsed.side}-${parsed.zoneSlug}`;
-        const zone=zoneMap[slug];
-        const key=`${zone.id}::${parsed.layerName}`;
-        if(existingLayers.has(key)){ console.log(`  skip exists: ${parsed.layerName}`); continue; }
-
-        const tmpPNG=path.join(TMP_DIR,`${f.id}.png`);
-        console.log(`  upload: ${f.name} → ${zone.name}`);
-        await driveDownload(token,f.id,tmpPNG).catch(e=>{console.error('  dl err:',e.message);});
-        if(!fs.existsSync(tmpPNG)){ continue; }
-        await uploadLayer(design.id,parsed.layerName,parsed.side,zone.id,tmpPNG)
-          .catch(e=>console.error('  upload err:',e.message));
-        try{ fs.unlinkSync(tmpPNG); }catch{}
+      // Download + upload
+      const tmpPNG=path.join(TMP_DIR,`${f.id}.png`);
+      console.log(`  upload: ${f.name} → zone=${zone.name}`);
+      try{
+        await driveDownload(token,f.id,tmpPNG);
+        const buf=fs.readFileSync(tmpPNG);
+        await uploadLayer(design.id,parsed.layerName,parsed.side,zone.id,buf);
+        lfMap[f.name]=f.id; // lưu fileId mới
+        try{fs.unlinkSync(tmpPNG);}catch{}
+      }catch(e){
+        console.error(`  error: ${e.message}`);
       }
     }
 
-    synced[df.id]=stateKey;
+    synced[folderId]=stateKey;
+    synced._layerFileMap[folderId]=lfMap;
     saveSynced(synced);
-    console.log(`[DriveSync] done: ${designName}`);
+    console.log(`[DriveSync] done: ${folderName}`);
   }
   console.log('[DriveSync] finished');
 }
